@@ -36,6 +36,18 @@ void addRandomEdges(HypergraphBuilder<Index, Weight> &h, Index nEdges, double av
   }
 }
 
+template <typename Resource, typename Rgen>
+Matrix<Resource> getRandomArray(std::size_t nNodes, std::size_t nResources, double avgDemand, Rgen &rgen) {
+  Matrix<Resource> ret(nNodes, nResources);
+  std::poisson_distribution<Resource> dist(avgDemand);
+  for (std::size_t n = 0; n < nNodes; ++n) {
+    for (std::size_t r = 0; r < nResources; ++r) {
+      ret(n, r) = dist(rgen);
+    }
+  }
+  return ret;
+}
+
 }  // End namespace minipart
 
 

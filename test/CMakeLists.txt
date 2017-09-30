@@ -5,6 +5,7 @@ SET(TEST_LIBS
 
 SET(TESTS
   hypergraph
+  io
 )
 
 FOREACH(TEST_BASE ${TESTS})
