@@ -4,6 +4,7 @@
 #include <boost/test/unit_test.hpp>
 
 #include "hypergraph.h"
+#include "rand_gen.h"
 
 using namespace minipart;
 
@@ -72,6 +73,23 @@ BOOST_AUTO_TEST_CASE(degree3) {
   }
   for (auto n : g.nodes()) {
     BOOST_CHECK_EQUAL (g.edges(n).size(), 6lu);
+  }
+}
+
+BOOST_AUTO_TEST_CASE(randGen) {
+  typedef Hypergraph<unsigned, int> H;
+  std::minstd_rand rgen;
+
+  const unsigned nNodes = 100;
+  const unsigned nEdges = 1000;
+  H::Builder b(nNodes);
+  addRandomEdges(b, nEdges, 3.0, 10.0, rgen);
+  H g = b;
+
+  BOOST_CHECK (g.nNodes() == nNodes);
+  BOOST_CHECK (g.nEdges() >= nEdges * 0.95);
+  for (auto e : g.edges()) {
+    BOOST_CHECK (g.nodes(e).size() >= 2lu);
   }
 }
 
