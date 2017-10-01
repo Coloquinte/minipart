@@ -18,3 +18,12 @@ IF (BUILD_TEST)
   ADD_SUBDIRECTORY(test)
 ENDIF (BUILD_TEST)
 
+SET (SOURCES
+  src/main.cc)
+
+add_executable(minipart ${SOURCES})
+target_link_libraries(minipart
+  ${Boost_PROGRAM_OPTIONS_LIBRARY}
+)
+
+

@@ -7,7 +7,6 @@
 #include <boost/numeric/ublas/matrix.hpp>
 #include <ostream>
 #include <istream>
-#include <iostream>
 #include <iomanip>
 
 namespace minipart {
@@ -46,8 +45,9 @@ Hypergraph<Index, EdgeWeight> readHMetisGraph(std::istream &s, std::size_t nNode
         Index n;
         ss >> n;
         if (ss.fail()) continue;
-        if (n >= nNodes) throw std::runtime_error("Parsed pin index is outside the specified number of nodes");
-        nodes.emplace_back(n);
+        if (n > nNodes) throw std::runtime_error("Parsed pin index is outside the specified number of nodes");
+        if (n == 0) throw std::runtime_error("Parsed pin index cannot be 0");
+        nodes.emplace_back(n-1);
     }
     if (nodes.empty()) throw std::runtime_error("No node on the line");
 
@@ -97,7 +97,9 @@ Problem<Index, EdgeWeight, Resource> readHMetis(std::istream &s) {
   std::size_t nNodes, nEdges, params;
 
   std::stringstream ss = getHMetisLine(s);
-  ss >> nNodes >> nEdges >> params;
+  ss >> nEdges >> nNodes;
+  if (ss.fail()) throw std::runtime_error("Invalid first line");
+  ss >> params;
   if (ss.fail()) params = 0;
 
   if (params != 0 && params != 1 && params != 10 && params != 11) throw std::runtime_error("Invalid parameter value");
@@ -123,13 +125,13 @@ void writeHMetis(const Problem<Index, EdgeWeight, Resource> &pb, std::ostream &s
   }
   s << "%" << std::endl;
 
-  s << h.nNodes() << " " << h.nEdges();
+  s << h.nEdges() << " " << h.nNodes();
   s << " 11" << std::endl; // Edge and node weights
 
   for (auto e : h.edges()) {
     s << h.weight(e);
     for (auto n : h.nodes(e)) {
-      s << " " << n.id;
+      s << " " << n.id+1;
     }
     s << std::endl;
   }
