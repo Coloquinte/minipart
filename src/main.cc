@@ -26,6 +26,7 @@ po::options_description getOptions() {
 
   desc.add_options()("dump-hmetis", po::value<std::string>(),
       "dump a .hgr file for debug purposes");
+  desc.add_options()("stats", "print graph statistics");
 
   return desc;
 }
@@ -69,10 +70,8 @@ PB parseGraph(const po::variables_map &vm) {
 }
 
 void exportGraph(const po::variables_map &vm, const PB &pb) {
-  if (vm.count("dump-hmetis")) {
-    std::ofstream hf(vm["dump-hmetis"].as<std::string>());
-    writeHMetis(pb, hf);
-  }
+  std::ofstream hf(vm["dump-hmetis"].as<std::string>());
+  writeHMetis(pb, hf);
 }
 
 void setupCapacities(const po::variables_map &vm, PB &pb) {
@@ -98,7 +97,11 @@ int main(int argc, char **argv) {
   po::variables_map vm = parseArguments(argc, argv);
   PB pb = parseGraph(vm);
   setupCapacities(vm, pb);
-  exportGraph(vm, pb);
+
+  if (vm.count("dump-hmetis")) exportGraph(vm, pb);
+
+  if (vm.count("stats")) reportStats(pb.hypergraph, std::cout);
+
   return 0;
 }
 

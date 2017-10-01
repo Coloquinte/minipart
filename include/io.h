@@ -8,6 +8,7 @@
 #include <ostream>
 #include <istream>
 #include <iomanip>
+#include <map>
 
 namespace minipart {
 
@@ -142,7 +143,98 @@ void writeHMetis(const Problem<Index, EdgeWeight, Resource> &pb, std::ostream &s
     }
     s << std::endl;
   }
+}
 
+void report (
+    std::ostream &s
+  , const std::map<std::size_t, std::size_t> &degreeToCount
+  , const std::map<std::size_t, std::size_t> &degreeToWeight
+  , bool reportWeight = false
+  ) {
+  std::size_t totCnt = 0;
+  std::size_t totPins = 0;
+  std::size_t totWeight = 0;
+
+  for (auto p : degreeToCount) {
+    totCnt += p.second;
+    totPins += p.first * p.second;
+  }
+  for (auto p : degreeToWeight) {
+    totWeight += p.second;
+  }
+
+  for (std::size_t i = 0u; i < 8u; ++i) {
+    if (degreeToCount.count(i) == 0) continue;
+    s << i << ",\t";
+    s << 100.0 * degreeToCount.at(i) / totCnt << "%,\t";
+    s << 100.0 * i * degreeToCount.at(i) / totPins << "%";
+    if (reportWeight) s << ",\t" << 100.0 * degreeToWeight.at(i) / totWeight << "%";
+    s << std::endl;
+  }
+
+  std::size_t maxIndex = degreeToCount.rbegin()->first;
+  for (std::size_t i = 8u; i < maxIndex; i *= 2) {
+    std::size_t cnt = 0;
+    std::size_t pins = 0;
+    std::size_t wgt = 0;
+    for (std::size_t j = i; j < 2 * i; ++j) {
+      if (degreeToCount.count(j) == 0) continue;
+      cnt += degreeToCount .at(j);
+      pins += degreeToCount.at(j) * j;
+      wgt += degreeToWeight.at(j);
+    }
+    s << i << "-" << 2 * i - 1 << ",\t";
+    s << 100.0 * cnt / totCnt << "%,\t";
+    s << 100.0 * pins / totPins << "%";
+    if (reportWeight) s << ",\t" << 100.0 * wgt / totWeight << "%";
+    s << std::endl;
+  }
+
+  s << std::endl;
+}
+
+template <class Index, class Weight>
+void reportStats(const Hypergraph<Index, Weight> &h, std::ostream &s) {
+  std::map<std::size_t, std::size_t> degreeToCount;
+  std::map<std::size_t, std::size_t> degreeToWeight;
+
+  std::size_t sumDegrees = 0;
+  bool reportWeight = false;
+
+  for (auto e : h.edges()) {
+    std::size_t degree = h.nodes(e).size();
+    std::size_t weight = h.weight(e);
+    ++degreeToCount[degree];
+    degreeToWeight[degree] += weight;
+    sumDegrees += degree;
+    if (weight != 1) reportWeight = true;
+  }
+  if (degreeToCount.empty()) return;
+
+  s << std::endl;
+  s << h.nNodes() << " nodes, " << h.nEdges() << " edges" << std::endl;
+  s << std::fixed << std::setw(3) << std::setprecision(1);
+  s << static_cast<double>(sumDegrees) / h.nEdges() << " avg edge degree" << std::endl;
+  s << static_cast<double>(sumDegrees) / h.nNodes() << " avg node degree" << std::endl;
+  s << std::endl;
+
+  s << "Degree,\tEdges,\tPins";
+  if (reportWeight) s << ",\tWeight";
+  s << std::endl;
+
+  report(s, degreeToCount, degreeToWeight, reportWeight);
+
+  degreeToCount.clear();
+  for (auto n : h.nodes()) {
+    std::size_t degree = h.edges(n).size();
+    ++degreeToCount[degree];
+  }
+  degreeToWeight = degreeToCount;
+
+  s << "Degree,\tNodes,\tPins";
+  s << std::endl;
+
+  report(s, degreeToCount, degreeToWeight);
 }
 
 }  // End namespace minipart
