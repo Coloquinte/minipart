@@ -1,6 +1,8 @@
+// Copyright (C) 2017 Gabriel Gouvine - All Rights Reserved
 
 #include "hypergraph.h"
 #include "io.h"
+#include "inc_bipart.h"
 
 #include <boost/program_options.hpp>
 
@@ -82,15 +84,91 @@ void setupCapacities(const po::variables_map &vm, PB &pb) {
     }
   }
 
-  pb.capacities.resize(pb.demands.size1(), pb.demands.size2());
   std::size_t num_parts = vm["num_parts"].as<std::size_t>();
   double margin = vm["margin"].as<double>();
   double factor = (margin * 0.01 + 1.0) / num_parts;
+  pb.capacities.resize(num_parts, pb.demands.size2());
   for (std::size_t i = 0; i < num_parts; ++i) {
     for (std::size_t j = 0; j < pb.demands.size2(); ++j) {
       pb.capacities(i, j) = totals[j] * factor;
     }
   }
+}
+
+void place(IncBipart<unsigned, int, int> &inc, std::minstd_rand &rgen) {
+  std::bernoulli_distribution dist;
+  for (auto n : inc.nodes()) {
+    if (dist(rgen)) inc.move(n);
+  }
+
+  std::vector<Node<unsigned> > nodes (inc.nodes().begin(), inc.nodes().end());
+  std::shuffle(nodes.begin(), nodes.end(), rgen);
+  for (auto n : nodes) {
+    bool m = inc.mapping(n);
+    if (inc.overflow(m)) inc.move(n);
+  }
+
+  inc.checkConsistency();
+}
+
+void optimize(IncBipart<unsigned, int, int> &inc, std::minstd_rand &rgen) {
+  std::vector<Node<unsigned> > nodes (inc.nodes().begin(), inc.nodes().end());
+  std::shuffle(nodes.begin(), nodes.end(), rgen);
+
+  for (auto n : nodes) {
+    if (inc.gain(n) > 0) {
+      inc.tryMove(n);
+    }
+  }
+
+  std::vector<Node<unsigned> > active_set, zero_gain_set;
+  std::vector<int> num_zero_gain_moves(inc.nNodes(), 0);
+  const int max_zero_gain_moves = 2;
+
+  auto tryPush = [&](Node<unsigned> o) {
+    if (inc.gain(o) > 0) {
+      active_set.push_back(o);
+    }
+    else if (inc.gain(o) == 0 && ++num_zero_gain_moves[o.id] <= max_zero_gain_moves) {
+      zero_gain_set.push_back(o);
+    }
+  };
+
+  for (auto n : nodes) {
+    tryPush(n);
+  }
+
+  while (!active_set.empty() || !zero_gain_set.empty()) {
+    Node<unsigned> n;
+    if (!active_set.empty()) {
+      n = active_set.back();
+      active_set.pop_back();
+    }
+    else {
+      n = zero_gain_set.back();
+      zero_gain_set.pop_back();
+    }
+    if (inc.gain(n) < 0) continue;
+    inc.tryMove(n, [&](Node<unsigned> o, int w) { tryPush(o); });
+  }
+}
+
+void solve(const PB &pb) {
+  std::minstd_rand rgen;
+  const int nTry = 100;
+  int nSuccess = 0;
+
+  IncBipart<unsigned, int, int> inc(pb);
+  for (int i = 0; i < nTry; ++i) {
+    place(inc, rgen);
+    if (!inc.legal()) continue;
+    ++nSuccess;
+    std::cout << "Before " << inc.cost() << std::endl;
+    optimize(inc, rgen);
+    std::cout << "After " << inc.cost() << std::endl;
+  }
+
+  std::cout << nSuccess << " successes out of " << nTry << " placements" << std::endl;
 }
 
 int main(int argc, char **argv) {
@@ -101,6 +179,8 @@ int main(int argc, char **argv) {
   if (vm.count("dump-hmetis")) exportGraph(vm, pb);
 
   if (vm.count("stats")) reportStats(pb.hypergraph, std::cout);
+
+  solve(pb);
 
   return 0;
 }

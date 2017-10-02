@@ -87,6 +87,13 @@ class HypergraphBuilder {
   friend class Hypergraph<Index, Weight>;
 };
 
+template<class Index, class Weight, class Resource>
+struct Problem {
+  Hypergraph<Index, Weight> hypergraph;
+  Matrix<Resource> demands;
+  Matrix<Resource> capacities;
+};
+
 template <class Index, class Weight>
 inline Hypergraph<Index, Weight>::Hypergraph() {
   edges_.emplace_back(0, 0);
