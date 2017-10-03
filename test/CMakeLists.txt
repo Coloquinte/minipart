@@ -1,6 +1,7 @@
 
 SET(TEST_LIBS
   ${Boost_LIBRARIES}
+  libminipart
 )
 
 SET(TESTS

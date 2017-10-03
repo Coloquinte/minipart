@@ -8,6 +8,7 @@
 
 #include <fstream>
 #include <iostream>
+#include <iomanip>
 
 using namespace minipart;
 namespace po = boost::program_options;

@@ -5,6 +5,7 @@
 #include "hypergraph.h"
 
 #include <random>
+#include <unordered_set>
 
 namespace minipart {
 

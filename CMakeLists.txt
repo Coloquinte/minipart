@@ -12,18 +12,24 @@ INCLUDE_DIRECTORIES(${MINIPART_SOURCE_DIR}/include)
 
 option(BUILD_TEST "Build unit tests" ON)
 
+SET (SOURCES
+  src/hypergraph.cc
+  src/io.cc)
+
+add_library(libminipart ${SOURCES})
+
+SET (BIN_SOURCES
+  src/main.cc)
+
 ENABLE_TESTING()
 
 IF (BUILD_TEST)
   ADD_SUBDIRECTORY(test)
 ENDIF (BUILD_TEST)
 
-SET (SOURCES
-  src/main.cc)
-
-add_executable(minipart ${SOURCES})
+add_executable(minipart ${BIN_SOURCES})
 target_link_libraries(minipart
   ${Boost_PROGRAM_OPTIONS_LIBRARY}
+  libminipart
 )
-
 
