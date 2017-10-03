@@ -141,6 +141,33 @@ void optimize(IncBipart<unsigned, int, int> &inc, std::minstd_rand &rgen) {
   }
 }
 
+void incrementCutEdges(std::vector<int> &cutEdges, const IncBipart<unsigned, int, int> &pb) {
+  assert (cutEdges.size() == pb.nEdges());
+  for (std::size_t i = 0; i < pb.nEdges(); ++i) {
+    if (!pb.cut(Edge<unsigned>(i))) continue;
+    ++cutEdges[i];
+  }
+}
+
+std::size_t getCutUnderCount (const std::vector<int> &cutEdges, int count) {
+    std::size_t nEdges = 0;
+    for (int nbCut : cutEdges) {
+      if (nbCut <= count) {
+        ++nEdges;
+      }
+    }
+    return nEdges;
+}
+
+void reportCutProportion (const std::vector<int> &cutEdges, int nStarts) {
+  std::cout << "\nCut edges: " << std::endl;
+  for (double percentage = 0.5; percentage <= 50; percentage *= 2) {
+    int maxNbCut = (percentage * 0.01) * nStarts;
+    int nb = getCutUnderCount(cutEdges, maxNbCut);
+    std::cout << "<= " << percentage << "%: " << 100.0 * nb / cutEdges.size() << "%" << std::endl;
+  }
+}
+
 std::pair <double, double> computeAvgAndDev(const std::vector<int> &costs) {
   double avg = 0.0;
   double sqavg = 0.0;
@@ -157,16 +184,19 @@ std::pair <double, double> computeAvgAndDev(const std::vector<int> &costs) {
 
 void solve(const PB &pb) {
   std::minstd_rand rgen;
+  IncBipart<unsigned, int, int> inc(pb);
+
   const int n_iter = 500;
   std::vector<int> init_cost, final_cost;
+  std::vector<int> cut_edges(inc.nEdges(), 0);
 
-  IncBipart<unsigned, int, int> inc(pb);
   for (int i = 0; i < n_iter; ++i) {
     place(inc, rgen);
     if (!inc.legal()) continue;
     init_cost.push_back(inc.cost());
     optimize(inc, rgen);
     final_cost.push_back(inc.cost());
+    incrementCutEdges(cut_edges, inc);
   }
 
   std::cout << n_iter<< " iterations, ";
@@ -177,6 +207,8 @@ void solve(const PB &pb) {
   auto final_summary = computeAvgAndDev(final_cost);
   std::cout << "Init:  average " << init_summary.first  << ", deviation " << init_summary.second  << "%" << std::endl;
   std::cout << "Final: average " << final_summary.first  << ", deviation " << final_summary.second  << "%" << std::endl;
+
+  reportCutProportion(cut_edges, n_iter);
 }
 
 int main(int argc, char **argv) {
