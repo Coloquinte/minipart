@@ -12,8 +12,6 @@
 using namespace minipart;
 namespace po = boost::program_options;
 
-typedef Problem<unsigned, int, int> PB;
-
 po::options_description getOptions() {
   po::options_description desc("Options");
   desc.add_options()("help,h", "print this help");
@@ -66,17 +64,17 @@ po::variables_map parseArguments(int argc, char **argv) {
   return vm;
 }
 
-PB parseGraph(const po::variables_map &vm) {
+Problem parseGraph(const po::variables_map &vm) {
   std::ifstream hf(vm["hmetis"].as<std::string>());
-  return readHMetis<unsigned, int, int>(hf);
+  return readHMetis(hf);
 }
 
-void exportGraph(const po::variables_map &vm, const PB &pb) {
+void exportGraph(const po::variables_map &vm, const Problem &pb) {
   std::ofstream hf(vm["dump-hmetis"].as<std::string>());
   writeHMetis(pb, hf);
 }
 
-void setupCapacities(const po::variables_map &vm, PB &pb) {
+void setupCapacities(const po::variables_map &vm, Problem &pb) {
   std::vector<int> totals(pb.demands.size2(), 0);
   for (std::size_t i = 0; i < pb.demands.size1(); ++i) {
     for (std::size_t j = 0; j < pb.demands.size2(); ++j) {
@@ -95,13 +93,13 @@ void setupCapacities(const po::variables_map &vm, PB &pb) {
   }
 }
 
-void place(IncBipart<unsigned, int, int> &inc, std::minstd_rand &rgen) {
+void place(IncBipart &inc, std::minstd_rand &rgen) {
   std::bernoulli_distribution dist;
   for (auto n : inc.nodes()) {
     if (dist(rgen)) inc.move(n);
   }
 
-  std::vector<Node<unsigned> > nodes (inc.nodes().begin(), inc.nodes().end());
+  std::vector<Node> nodes (inc.nodes().begin(), inc.nodes().end());
   std::shuffle(nodes.begin(), nodes.end(), rgen);
   for (auto n : nodes) {
     bool m = inc.mapping(n);
@@ -111,15 +109,15 @@ void place(IncBipart<unsigned, int, int> &inc, std::minstd_rand &rgen) {
   inc.checkConsistency();
 }
 
-void optimize(IncBipart<unsigned, int, int> &inc, std::minstd_rand &rgen) {
-  std::vector<Node<unsigned> > nodes (inc.nodes().begin(), inc.nodes().end());
+void optimize(IncBipart &inc, std::minstd_rand &rgen) {
+  std::vector<Node > nodes (inc.nodes().begin(), inc.nodes().end());
   std::shuffle(nodes.begin(), nodes.end(), rgen);
 
-  std::vector<Node<unsigned> > active_set, zero_gain_set;
+  std::vector<Node > active_set, zero_gain_set;
   std::vector<int> num_zero_gain_moves(inc.nNodes(), 0);
   const int max_zero_gain_moves = 2;
 
-  auto tryPush = [&](Node<unsigned> o) {
+  auto tryPush = [&](Node o) {
     if (inc.gain(o) > 0) {
       active_set.push_back(o);
     }
@@ -133,18 +131,18 @@ void optimize(IncBipart<unsigned, int, int> &inc, std::minstd_rand &rgen) {
   }
 
   while (!active_set.empty() || !zero_gain_set.empty()) {
-    std::vector<Node<unsigned> > &pick = active_set.empty() ? zero_gain_set : active_set;
-    Node<unsigned> n = pick.back();
+    std::vector<Node > &pick = active_set.empty() ? zero_gain_set : active_set;
+    Node n = pick.back();
     pick.pop_back();
     if (inc.gain(n) < 0) continue;
-    inc.tryMove(n, [&](Node<unsigned> o, int w) { tryPush(o); });
+    inc.tryMove(n, [&](Node o, int w) { tryPush(o); });
   }
 }
 
-void incrementCutEdges(std::vector<int> &cutEdges, const IncBipart<unsigned, int, int> &pb) {
+void incrementCutEdges(std::vector<int> &cutEdges, const IncBipart &pb) {
   assert (cutEdges.size() == pb.nEdges());
   for (std::size_t i = 0; i < pb.nEdges(); ++i) {
-    if (!pb.cut(Edge<unsigned>(i))) continue;
+    if (!pb.cut(Edge(i))) continue;
     ++cutEdges[i];
   }
 }
@@ -182,9 +180,9 @@ std::pair <double, double> computeAvgAndDev(const std::vector<int> &costs) {
   return std::make_pair(avg, std_dev);
 }
 
-void solve(const PB &pb) {
+void solve(const Problem &pb) {
   std::minstd_rand rgen;
-  IncBipart<unsigned, int, int> inc(pb);
+  IncBipart inc(pb);
 
   const int n_iter = 500;
   std::vector<int> init_cost, final_cost;
@@ -213,7 +211,7 @@ void solve(const PB &pb) {
 
 int main(int argc, char **argv) {
   po::variables_map vm = parseArguments(argc, argv);
-  PB pb = parseGraph(vm);
+  Problem pb = parseGraph(vm);
   setupCapacities(vm, pb);
 
   if (vm.count("dump-hmetis")) exportGraph(vm, pb);

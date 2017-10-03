@@ -8,25 +8,22 @@
 
 namespace minipart {
 
-template <class Index, class Weight>
 class HypergraphBuilder;
 
-template <class Index, class Weight>
 struct HEdgeData {
   Index limit_;
   Weight weight_;
   HEdgeData (Index l, Index w) : limit_(l), weight_(w) {}
 };
 
-template <class Index, class Weight>
 class Hypergraph {
   static_assert(std::is_unsigned<Index>(), "Index type must be unsigned");
   static_assert(std::is_signed<Weight>(), "Weight type must be signed");
 
  public:
-  typedef Node<Index> N;
-  typedef Edge<Index> E;
-  typedef HypergraphBuilder<Index, Weight> Builder;
+  typedef Node N;
+  typedef Edge E;
+  typedef HypergraphBuilder Builder;
 
   std::size_t nEdges() const;
   std::size_t nNodes() const;
@@ -35,10 +32,10 @@ class Hypergraph {
   Range<E> edges() const;
   Range<N> nodes() const;
 
-  Slice<N> nodes   (Edge<Index>) const;
-  Slice<E> edges   (Node<Index>) const;
+  Slice<N> nodes   (Edge) const;
+  Slice<E> edges   (Node) const;
 
-  Weight weight(Edge<Index>) const;
+  Weight weight(Edge) const;
 
   Hypergraph();
   Hypergraph(const Builder &);
@@ -53,7 +50,7 @@ class Hypergraph {
   void finalize();
 
  private:
-  std::vector<HEdgeData<Index, Weight> > edges_;
+  std::vector<HEdgeData > edges_;
   std::vector<N>    edge_pins_;
 
   std::vector<Index> node_limits_;
@@ -62,12 +59,11 @@ class Hypergraph {
   Index _nNodes;
 };
 
-template <class Index, class Weight>
 class HypergraphBuilder {
  public:
-  typedef Node<Index> N;
-  typedef Edge<Index> E;
-  typedef Hypergraph<Index, Weight> H;
+  typedef Node N;
+  typedef Edge E;
+  typedef Hypergraph H;
 
   std::size_t nEdges() const;
   std::size_t nNodes() const;
@@ -79,108 +75,90 @@ class HypergraphBuilder {
   E addEdge(std::initializer_list<N>, Weight w=1);
 
  private:
-  std::vector<HEdgeData<Index, Weight> > edges_;
+  std::vector<HEdgeData > edges_;
   std::vector<N>    edge_pins_;
 
   Index _nNodes;
 
-  friend class Hypergraph<Index, Weight>;
+  friend class Hypergraph;
 };
 
-template<class Index, class Weight, class Resource>
 struct Problem {
-  Hypergraph<Index, Weight> hypergraph;
+  Hypergraph hypergraph;
   Matrix<Resource> demands;
   Matrix<Resource> capacities;
 };
 
-template <class Index, class Weight>
-inline Hypergraph<Index, Weight>::Hypergraph() {
+inline Hypergraph::Hypergraph() {
   edges_.emplace_back(0, 0);
   _nNodes = 0;
 }
 
-template <class Index, class Weight>
-inline Hypergraph<Index, Weight>::Hypergraph(const Builder &b) {
+inline Hypergraph::Hypergraph(const Builder &b) {
   edges_ = b.edges_;
   edge_pins_ = b.edge_pins_;
   _nNodes = b._nNodes;
   finalize();
 }
 
-template <class Index, class Weight>
-inline std::size_t Hypergraph<Index, Weight>::nEdges() const {
+inline std::size_t Hypergraph::nEdges() const {
   return edges_.size() - 1; // One dummy at the end for sparse storage consistency
 }
-template <class Index, class Weight>
-inline std::size_t Hypergraph<Index, Weight>::nNodes() const {
+inline std::size_t Hypergraph::nNodes() const {
   return _nNodes;
 }
-template <class Index, class Weight>
-inline std::size_t Hypergraph<Index, Weight>::nPins() const {
+inline std::size_t Hypergraph::nPins() const {
   return edge_pins_.size();
 }
 
-template <class Index, class Weight>
-inline Range<Edge<Index> > Hypergraph<Index, Weight>::edges() const {
+inline Range<Edge > Hypergraph::edges() const {
   return Range<E>(E(0), E(nEdges()));
 }
-template <class Index, class Weight>
-inline Range<Node<Index> > Hypergraph<Index, Weight>::nodes() const {
+inline Range<Node > Hypergraph::nodes() const {
   return Range<N>(N(0), N(nNodes()));
 }
 
-template <class Index, class Weight>
-inline Slice<Node<Index> > Hypergraph<Index, Weight>::nodes   (Edge<Index> e) const {
-  return Slice<Node<Index> >(edge_pins_.begin() + edges_[e.id].limit_, edge_pins_.begin() + edges_[e.id+1].limit_);
+inline Slice<Node > Hypergraph::nodes   (Edge e) const {
+  return Slice<Node >(edge_pins_.begin() + edges_[e.id].limit_, edge_pins_.begin() + edges_[e.id+1].limit_);
 }
-template <class Index, class Weight>
-inline Slice<Edge<Index> > Hypergraph<Index, Weight>::edges   (Node<Index> n) const {
-  return Slice<Edge<Index> >(node_pins_.begin() + node_limits_[n.id], node_pins_.begin() + node_limits_[n.id+1]);
+inline Slice<Edge > Hypergraph::edges   (Node n) const {
+  return Slice<Edge >(node_pins_.begin() + node_limits_[n.id], node_pins_.begin() + node_limits_[n.id+1]);
 }
 
-template <class Index, class Weight>
-inline Weight Hypergraph<Index, Weight>::weight(Edge<Index> e) const {
+inline Weight Hypergraph::weight(Edge e) const {
   return edges_[e.id+1].weight_;
 }
 
-template <class Index, class Weight>
-inline HypergraphBuilder<Index, Weight>::HypergraphBuilder(Index n) {
+inline HypergraphBuilder::HypergraphBuilder(Index n) {
   edges_.emplace_back(0, 0);
   _nNodes = n;
 }
 
-template <class Index, class Weight>
-inline std::size_t HypergraphBuilder<Index, Weight>::nEdges() const {
+inline std::size_t HypergraphBuilder::nEdges() const {
   return edges_.size() - 1; // One dummy at the end for sparse storage consistency
 }
 
-template <class Index, class Weight>
-inline std::size_t HypergraphBuilder<Index, Weight>::nNodes() const {
+inline std::size_t HypergraphBuilder::nNodes() const {
   return _nNodes;
 }
 
-template <class Index, class Weight>
-inline Node<Index> HypergraphBuilder<Index, Weight>::addNode() {
+inline Node HypergraphBuilder::addNode() {
   return N(_nNodes++);
 }
 
-template <class Index, class Weight>
-inline Edge<Index> HypergraphBuilder<Index, Weight>::addEdge(std::initializer_list<N> l, Weight w) {
+inline Edge HypergraphBuilder::addEdge(std::initializer_list<N> l, Weight w) {
   return addEdge(l.begin(), l.end(), w);
 }
 
-template <class Index, class Weight>
 template<class It>
-Edge<Index> HypergraphBuilder<Index, Weight>::addEdge(It begin, It end, Weight w) {
+Edge HypergraphBuilder::addEdge(It begin, It end, Weight w) {
   E ret(nEdges());
   edge_pins_.insert(edge_pins_.end(), begin, end);
   edges_.emplace_back(edge_pins_.size(), w);
   return ret;
 }
 
-template <class Index, class Weight>
-inline void Hypergraph<Index, Weight>::finalize() {
+inline void Hypergraph::finalize() {
   edges_.shrink_to_fit();
   edge_pins_.shrink_to_fit();
 
@@ -210,15 +188,13 @@ inline void Hypergraph<Index, Weight>::finalize() {
   node_limits_.pop_back();
 }
 
-template <class Index, class Weight>
-inline void Hypergraph<Index, Weight>::checkConsistency() const {
+inline void Hypergraph::checkConsistency() const {
   checkLimits();
   checkNodeToEdges();
   checkUniquePins();
 }
 
-template <class Index, class Weight>
-inline void Hypergraph<Index, Weight>::checkLimits() const {
+inline void Hypergraph::checkLimits() const {
   assert (nNodes() == node_limits_.size() - 1u);
   assert ((Index) nNodes() == _nNodes);
   assert (nEdges() ==  edges_.size() - 1u);
@@ -234,8 +210,7 @@ inline void Hypergraph<Index, Weight>::checkLimits() const {
   assert (node_limits_.back() == (Index) nPins());
 }
 
-template <class Index, class Weight>
-inline void Hypergraph<Index, Weight>::checkNodeToEdges() const {
+inline void Hypergraph::checkNodeToEdges() const {
   std::vector<std::unordered_set<Index> > nodeToEdges(nNodes());
 
   for (N n : nodes()) {
@@ -251,8 +226,7 @@ inline void Hypergraph<Index, Weight>::checkNodeToEdges() const {
   }
 }
 
-template <class Index, class Weight>
-inline void Hypergraph<Index, Weight>::checkUniquePins() const {
+inline void Hypergraph::checkUniquePins() const {
   std::unordered_set<Index> pins;
   for (E e : edges()) {
     pins.clear();

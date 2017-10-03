@@ -8,8 +8,8 @@
 
 namespace minipart {
 
-template<typename Index, typename Weight, typename Rgen>
-void addRandomEdges(HypergraphBuilder<Index, Weight> &h, Index nEdges, double average_degree, double average_weight, Rgen &rgen, Index min_degree = 2) {
+template <typename Rgen>
+void addRandomEdges(HypergraphBuilder &h, Index nEdges, double average_degree, double average_weight, Rgen &rgen, Index min_degree = 2) {
   if (h.nNodes() == 0) return;
 
   assert (average_degree > min_degree);
@@ -19,7 +19,7 @@ void addRandomEdges(HypergraphBuilder<Index, Weight> &h, Index nEdges, double av
   std::uniform_int_distribution<Index> node_dist(0, h.nNodes()-1);
 
   std::unordered_set<Index> pinSet;
-  std::vector<Node<Index> > pins;
+  std::vector<Node> pins;
   for (Index i = 0; i < nEdges; ++i) {
     pinSet.clear();
     pins.clear();
@@ -36,7 +36,7 @@ void addRandomEdges(HypergraphBuilder<Index, Weight> &h, Index nEdges, double av
   }
 }
 
-template <typename Resource, typename Rgen>
+template <typename Rgen>
 Matrix<Resource> getRandomArray(std::size_t nNodes, std::size_t nResources, double avgDemand, Rgen &rgen) {
   Matrix<Resource> ret(nNodes, nResources);
   std::poisson_distribution<Resource> dist(avgDemand);

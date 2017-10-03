@@ -11,7 +11,7 @@ using namespace minipart;
 BOOST_AUTO_TEST_SUITE(hypergraph)
 
 BOOST_AUTO_TEST_CASE(degree2) {
-  typedef Hypergraph<unsigned, int> H;
+  typedef Hypergraph H;
   H::Builder b;
   
   std::vector<H::N> nodes;
@@ -44,7 +44,7 @@ BOOST_AUTO_TEST_CASE(degree2) {
 }
 
 BOOST_AUTO_TEST_CASE(degree3) {
-  typedef Hypergraph<unsigned, int> H;
+  typedef Hypergraph H;
   H::Builder b;
   
   std::vector<H::N> nodes;
@@ -77,7 +77,7 @@ BOOST_AUTO_TEST_CASE(degree3) {
 }
 
 BOOST_AUTO_TEST_CASE(randGen) {
-  typedef Hypergraph<unsigned, int> H;
+  typedef Hypergraph H;
   std::minstd_rand rgen;
 
   const unsigned nNodes = 100;

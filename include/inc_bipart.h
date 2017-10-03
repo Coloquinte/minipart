@@ -8,41 +8,39 @@
 
 namespace minipart {
 
-template <class Index, class Weight, class Resource>
-std::int64_t computeBipartCost(const Hypergraph<Index, Weight>&, const Mapping<std::uint8_t>&);
+std::int64_t computeBipartCost(const Hypergraph&, const Mapping&);
 
-template <class Index, class Weight, class Resource>
 class IncBipart {
   static_assert(std::is_signed<Weight>::value, "Gain type must be signed");
   static_assert(std::is_signed<Resource>::value, "Resource type must be signed");
   typedef std::array<Index, 2> CounterPair;
 
  public:
-  IncBipart(const Problem<Index, Weight, Resource> &pb);
+  IncBipart(const Problem &pb);
 
   std::size_t nNodes() const { return h_.nNodes(); }
   std::size_t nEdges() const { return h_.nEdges(); }
   std::size_t nResources() const { return capacities_.size2(); }
 
-  Range<Node<Index> > nodes() const { return h_.nodes(); }
+  Range<Node> nodes() const { return h_.nodes(); }
 
   Weight cost() const { return cost_; }
   bool legal() const;
 
-  Weight gain(Node<Index> n) const { return gains_[n.id]; }
-  bool mapping(Node<Index> n) const { return mapping_[n].id; }
+  Weight gain(Node n) const { return gains_[n.id]; }
+  bool mapping(Node n) const { return mapping_[n].id; }
 
-  bool canMove(Node<Index> n) const;
+  bool canMove(Node n) const;
 
-  void move(Node<Index> n);
+  void move(Node n);
   template <typename F>
-  void move(Node<Index> n, const F &onGainIncrease);
+  void move(Node n, const F &onGainIncrease);
 
-  bool tryMove(Node<Index> n);
+  bool tryMove(Node n);
   template <typename F>
-  bool tryMove(Node<Index> n, const F &onGainIncrease);
+  bool tryMove(Node n, const F &onGainIncrease);
 
-  bool cut(Edge<Index> e) const { return edgeState_[e.id][0] != 0 && edgeState_[e.id][1] != 0; }
+  bool cut(Edge e) const { return edgeState_[e.id][0] != 0 && edgeState_[e.id][1] != 0; }
   bool overflow(bool partition) const;
 
   void checkConsistency() const;
@@ -54,8 +52,8 @@ class IncBipart {
   Matrix<Resource> initRemaining() const;
 
  private:
-  Hypergraph<Index, Weight> h_;
-  Mapping<std::uint8_t> mapping_;
+  Hypergraph h_;
+  Mapping mapping_;
 
   Matrix<Resource> demands_;
   Matrix<Resource> capacities_;
@@ -66,8 +64,7 @@ class IncBipart {
   Weight cost_;
 };
 
-template <class Index, class Weight, class Resource>
-IncBipart<Index, Weight, Resource>::IncBipart(const Problem<Index, Weight, Resource> &pb)
+IncBipart::IncBipart(const Problem &pb)
 : h_(pb.hypergraph)
 , mapping_(pb.hypergraph.nNodes())
 , demands_ (pb.demands)
@@ -78,8 +75,7 @@ IncBipart<Index, Weight, Resource>::IncBipart(const Problem<Index, Weight, Resou
   remaining_ = initRemaining();
 }
 
-template <class Index, class Weight, class Resource>
-std::vector<typename IncBipart<Index, Weight, Resource>::CounterPair> IncBipart<Index, Weight, Resource>::initState() const {
+std::vector<typename IncBipart::CounterPair> IncBipart::initState() const {
   std::vector<CounterPair> ret(h_.nEdges(), CounterPair({0, 0}));
   for (auto e : h_.edges()) {
     Index count = 0;
@@ -92,24 +88,21 @@ std::vector<typename IncBipart<Index, Weight, Resource>::CounterPair> IncBipart<
   return ret;
 }
 
-template <class Index, class Weight, class Resource>
-bool IncBipart<Index, Weight, Resource>::legal() const {
+bool IncBipart::legal() const {
   for (std::size_t i = 0; i < 2; ++i) {
     if (overflow(i)) return false;
   }
   return true;
 }
 
-template <class Index, class Weight, class Resource>
-bool IncBipart<Index, Weight, Resource>::overflow(bool i) const {
+bool IncBipart::overflow(bool i) const {
   for (std::size_t j = 0; j < nResources(); ++j) {
     if (remaining_(i, j) < 0) return true;
   }
   return false;
 }
 
-template <class Index, class Weight, class Resource>
-bool IncBipart<Index, Weight, Resource>::canMove(Node<Index> n) const {
+bool IncBipart::canMove(Node n) const {
   bool to = !mapping(n);
   for (std::size_t j = 0; j < nResources(); ++j) {
     if (remaining_(to, j) < demands_(n.id, j)) return false;
@@ -117,8 +110,7 @@ bool IncBipart<Index, Weight, Resource>::canMove(Node<Index> n) const {
   return true;
 }
 
-template <class Index, class Weight, class Resource>
-Weight IncBipart<Index, Weight, Resource>::initCost() const {
+Weight IncBipart::initCost() const {
   Weight ret = 0;
   for (auto e : h_.edges()) {
     CounterPair cnt = edgeState_[e.id];
@@ -128,8 +120,7 @@ Weight IncBipart<Index, Weight, Resource>::initCost() const {
   return ret;
 }
 
-template <class Index, class Weight, class Resource>
-std::vector<Weight> IncBipart<Index, Weight, Resource>::initGains() const {
+std::vector<Weight> IncBipart::initGains() const {
   std::vector<Weight> ret(h_.nNodes(), 0);
   for (auto n : h_.nodes()) {
     bool from = mapping(n);
@@ -145,8 +136,7 @@ std::vector<Weight> IncBipart<Index, Weight, Resource>::initGains() const {
   return ret;
 }
 
-template <class Index, class Weight, class Resource>
-Matrix<Resource> IncBipart<Index, Weight, Resource>::initRemaining() const {
+Matrix<Resource> IncBipart::initRemaining() const {
   Matrix<Resource> ret = capacities_;
   for (auto n : h_.nodes()) {
     bool part = mapping(n);
@@ -157,14 +147,12 @@ Matrix<Resource> IncBipart<Index, Weight, Resource>::initRemaining() const {
   return ret;
 }
 
-template <class Index, class Weight, class Resource>
-void IncBipart<Index, Weight, Resource>::move(Node<Index> n) {
-  move(n, [](Node<Index> n, Weight w) {});
+void IncBipart::move(Node n) {
+  move(n, [](Node n, Weight w) {});
 }
 
-template <class Index, class Weight, class Resource>
 template <typename F>
-void IncBipart<Index, Weight, Resource>::move(Node<Index> n, const F &onGainIncrease) {
+void IncBipart::move(Node n, const F &onGainIncrease) {
   bool from = mapping(n);
   bool to = !from;
   this->cost_ -= gains_[n.id];
@@ -209,17 +197,15 @@ void IncBipart<Index, Weight, Resource>::move(Node<Index> n, const F &onGainIncr
     remaining_(from, j) += demands_(n.id, j);
   }
 
-  this->mapping_[n] = Part<std::uint8_t>(to);
+  this->mapping_[n] = Part(to);
 }
 
-template <class Index, class Weight, class Resource>
-bool IncBipart<Index, Weight, Resource>::tryMove(Node<Index> n) {
-  return tryMove(n, [](Node<Index> n, Weight w) {});
+bool IncBipart::tryMove(Node n) {
+  return tryMove(n, [](Node n, Weight w) {});
 }
 
-template <class Index, class Weight, class Resource>
 template<typename F>
-bool IncBipart<Index, Weight, Resource>::tryMove(Node<Index> n, const F &onGainIncrease) {
+bool IncBipart::tryMove(Node n, const F &onGainIncrease) {
   if (canMove(n)) {
     move(n, onGainIncrease);
     return true;
@@ -228,8 +214,7 @@ bool IncBipart<Index, Weight, Resource>::tryMove(Node<Index> n, const F &onGainI
 }
 
 
-template <class Index, class Weight, class Resource>
-void IncBipart<Index, Weight, Resource>::checkConsistency() const {
+void IncBipart::checkConsistency() const {
   assert (mapping_.nNodes() == h_.nNodes());
   assert (demands_.size1() == nNodes());
   assert (capacities_.size1() == 2);
@@ -249,8 +234,7 @@ void IncBipart<Index, Weight, Resource>::checkConsistency() const {
   }
 }
 
-template <class Index, class Weight, class Resource>
-std::int64_t computeBipartCost(const Hypergraph<Index, Weight> &h, const Mapping<std::uint8_t>&m) {
+std::int64_t computeBipartCost(const Hypergraph &h, const Mapping&m) {
   std::int64_t ret = 0;
   for (auto e : h.edges()) {
     // Used as a bitset
