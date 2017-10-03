@@ -115,12 +115,6 @@ void optimize(IncBipart<unsigned, int, int> &inc, std::minstd_rand &rgen) {
   std::vector<Node<unsigned> > nodes (inc.nodes().begin(), inc.nodes().end());
   std::shuffle(nodes.begin(), nodes.end(), rgen);
 
-  for (auto n : nodes) {
-    if (inc.gain(n) > 0) {
-      inc.tryMove(n);
-    }
-  }
-
   std::vector<Node<unsigned> > active_set, zero_gain_set;
   std::vector<int> num_zero_gain_moves(inc.nNodes(), 0);
   const int max_zero_gain_moves = 2;
@@ -139,36 +133,50 @@ void optimize(IncBipart<unsigned, int, int> &inc, std::minstd_rand &rgen) {
   }
 
   while (!active_set.empty() || !zero_gain_set.empty()) {
-    Node<unsigned> n;
-    if (!active_set.empty()) {
-      n = active_set.back();
-      active_set.pop_back();
-    }
-    else {
-      n = zero_gain_set.back();
-      zero_gain_set.pop_back();
-    }
+    std::vector<Node<unsigned> > &pick = active_set.empty() ? zero_gain_set : active_set;
+    Node<unsigned> n = pick.back();
+    pick.pop_back();
     if (inc.gain(n) < 0) continue;
     inc.tryMove(n, [&](Node<unsigned> o, int w) { tryPush(o); });
   }
 }
 
+std::pair <double, double> computeAvgAndDev(const std::vector<int> &costs) {
+  double avg = 0.0;
+  double sqavg = 0.0;
+  for (auto d : costs) {
+    double c = d;
+    avg += c;
+    sqavg += c * c;
+  }
+  avg /= costs.size();
+  sqavg /= costs.size();
+  double std_dev = 100.0 * std::sqrt (sqavg - avg * avg) / avg;
+  return std::make_pair(avg, std_dev);
+}
+
 void solve(const PB &pb) {
   std::minstd_rand rgen;
-  const int nTry = 100;
-  int nSuccess = 0;
+  const int n_iter = 500;
+  std::vector<int> init_cost, final_cost;
 
   IncBipart<unsigned, int, int> inc(pb);
-  for (int i = 0; i < nTry; ++i) {
+  for (int i = 0; i < n_iter; ++i) {
     place(inc, rgen);
     if (!inc.legal()) continue;
-    ++nSuccess;
-    std::cout << "Before " << inc.cost() << std::endl;
+    init_cost.push_back(inc.cost());
     optimize(inc, rgen);
-    std::cout << "After " << inc.cost() << std::endl;
+    final_cost.push_back(inc.cost());
   }
 
-  std::cout << nSuccess << " successes out of " << nTry << " placements" << std::endl;
+  std::cout << n_iter<< " iterations, ";
+  std::cout << std::fixed << std::setw(10) << std::setprecision(2);
+  std::cout << 100.0 * (n_iter- init_cost.size()) / n_iter << "% failure, " << std::endl;
+
+  auto init_summary = computeAvgAndDev(init_cost);
+  auto final_summary = computeAvgAndDev(final_cost);
+  std::cout << "Init:  average " << init_summary.first  << ", deviation " << init_summary.second  << "%" << std::endl;
+  std::cout << "Final: average " << final_summary.first  << ", deviation " << final_summary.second  << "%" << std::endl;
 }
 
 int main(int argc, char **argv) {
