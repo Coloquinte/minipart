@@ -81,12 +81,6 @@ class HypergraphBuilder {
   friend class Hypergraph;
 };
 
-struct Problem {
-  Hypergraph hypergraph;
-  Matrix<Resource> demands;
-  Matrix<Resource> capacities;
-};
-
 inline Hypergraph::Hypergraph() {
   edges_.emplace_back(0, 0);
   _nNodes = 0;

@@ -2,7 +2,7 @@
 
 #pragma once
 
-#include "hypergraph.h"
+#include "solver.h"
 
 #include <iosfwd>
 
