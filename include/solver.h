@@ -12,8 +12,10 @@ struct Problem {
   Matrix<Resource> capacities;
 };
 
+std::int64_t computeBipartCost(const Hypergraph&, const Mapping&);
+
 // Main solving function
-void solve(const Problem &pb);
+std::vector<Mapping> solve(const Problem &pb);
 
 }  // End namespace minipart
 

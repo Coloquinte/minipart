@@ -100,9 +100,10 @@ int main(int argc, char **argv) {
 
   if (vm.count("dump-hmetis")) exportGraph(vm, pb);
 
-  if (vm.count("stats")) reportStats(pb.hypergraph, std::cout);
+  if (vm.count("stats")) reportStats(pb, std::cout);
 
-  solve(pb);
+  std::vector<Mapping> mappings = solve(pb);
+  reportResults(pb, mappings, std::cout);
 
   return 0;
 }

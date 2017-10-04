@@ -11,7 +11,8 @@ namespace minipart {
 Problem readHMetis(std::istream &s);
 void writeHMetis(const Problem &pb, std::ostream &s);
 
-void reportStats(const Hypergraph &h, std::ostream &s);
+void reportStats(const Problem &pb, std::ostream &s);
+void reportResults(const Problem &pb, const std::vector<Mapping> &m, std::ostream &s);
 
 }  // End namespace minipart
 

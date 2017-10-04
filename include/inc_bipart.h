@@ -8,8 +8,6 @@
 
 namespace minipart {
 
-std::int64_t computeBipartCost(const Hypergraph&, const Mapping&);
-
 class IncBipart {
   static_assert(std::is_signed<Weight>::value, "Gain type must be signed");
   static_assert(std::is_signed<Resource>::value, "Resource type must be signed");
@@ -26,6 +24,7 @@ class IncBipart {
 
   Weight cost() const { return cost_; }
   bool legal() const;
+  Mapping mapping() const { return mapping_; }
 
   Weight gain(Node n) const { return gains_[n.id]; }
   bool mapping(Node n) const { return mapping_[n].id; }
@@ -233,26 +232,6 @@ void IncBipart::checkConsistency() const {
     }
   }
 }
-
-std::int64_t computeBipartCost(const Hypergraph &h, const Mapping&m) {
-  std::int64_t ret = 0;
-  for (auto e : h.edges()) {
-    // Used as a bitset
-    std::uint8_t used = 0;
-    for (auto n : h.nodes(e)) {
-      uint8_t pos = m[n].id;
-      assert (pos <= 1);
-      used |= (pos + 1);
-    }
-    assert (used <= 3);
-    // Cut if both bits are true
-    if (used == 3) {
-      ret += h.weight(e);
-    }
-  }
-  return ret;
-}
-
 
 }  // End namespace minipart
 

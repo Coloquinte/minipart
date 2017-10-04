@@ -181,7 +181,8 @@ void reportHelper (
   s << std::endl;
 }
 
-void reportStats(const Hypergraph &h, std::ostream &s) {
+void reportStats(const Problem &pb, std::ostream &s) {
+  const Hypergraph &h = pb.hypergraph;
   std::map<std::size_t, std::size_t> degreeToCount;
   std::map<std::size_t, std::size_t> degreeToWeight;
 
@@ -222,6 +223,83 @@ void reportStats(const Hypergraph &h, std::ostream &s) {
   s << std::endl;
 
   reportHelper(s, degreeToCount, degreeToWeight);
+}
+
+std::pair <double, double> computeAvgAndDev(const std::vector<int> &costs) {
+  double avg = 0.0;
+  double sqavg = 0.0;
+  for (auto d : costs) {
+    double c = d;
+    avg += c;
+    sqavg += c * c;
+  }
+  avg /= costs.size();
+  sqavg /= costs.size();
+  double std_dev = 100.0 * std::sqrt (sqavg - avg * avg) / avg;
+  return std::make_pair(avg, std_dev);
+}
+
+bool isEdgeCut(const Hypergraph &h, const Mapping &m, Edge e) {
+  // Used as a bitset
+  std::uint8_t used = 0;
+  for (auto n : h.nodes(e)) {
+    uint8_t pos = m[n].id;
+    assert (pos <= 1);
+    used |= (pos + 1);
+  }
+  assert (used <= 3);
+  // Cut if both bits are true
+  return used == 3;
+}
+
+std::int64_t computeBipartCost(const Hypergraph &h, const Mapping &m) {
+  std::int64_t ret = 0;
+  for (auto e : h.edges()) {
+    if (isEdgeCut(h, m, e)) {
+      ret += h.weight(e);
+    }
+  }
+  return ret;
+}
+
+std::vector<int> getCutCounts(const Hypergraph &h, const std::vector<Mapping> &mappings) {
+  std::vector<int> cut_counts(h.nEdges(), 0);
+  for (Edge e : h.edges()) {
+    for (const Mapping &m : mappings) {
+      cut_counts[e.id] += isEdgeCut(h, m, e);
+    }
+  }
+  return cut_counts;
+}
+
+std::size_t getCutUnderCount (const std::vector<int> &cut_counts, int max_count) {
+    std::size_t num = 0;
+    for (int cut_count : cut_counts) {
+      num += (cut_count <= max_count);
+    }
+    return num;
+}
+
+void reportResults(const Problem &pb, const std::vector<Mapping> &mappings, std::ostream &s) {
+  std::cout << mappings.size() << " feasible placements, ";
+
+  std::vector<int> costs;
+  for (const Mapping &m : mappings) {
+    costs.push_back(computeBipartCost(pb.hypergraph, m));
+  }
+
+  auto summary = computeAvgAndDev(costs);
+  s << std::fixed << std::setw(10) << std::setprecision(2);
+  s << "Cost: average " << summary.first  << ", deviation " << summary.second  << "%" << std::endl;
+
+  std::vector<int> cut_counts = getCutCounts(pb.hypergraph, mappings);
+  s << "\nCut edges: " << std::endl;
+  for (double percentage = 0.5; percentage <= 50; percentage *= 2) {
+    int max_count = (percentage * 0.01) * mappings.size();
+    int nb = getCutUnderCount(cut_counts, max_count);
+    s << "<= " << percentage << "%: " << 100.0 * nb / cut_counts.size() << "%" << std::endl;
+  }
+
 }
 
 }  // End namespace minipart
