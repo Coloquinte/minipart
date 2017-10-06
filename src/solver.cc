@@ -53,20 +53,16 @@ void optimize(IncBipart &inc, std::minstd_rand &rgen) {
   }
 }
 
-std::vector<Mapping> solve(const Problem &pb) {
+std::vector<Mapping> solve(const Problem &pb, int n_starts) {
   std::minstd_rand rgen;
   IncBipart inc(pb);
 
-  const int n_iter = 500;
-  std::vector<int> costs;
-  std::vector<int> cut_edges(inc.nEdges(), 0);
   std::vector<Mapping> mappings;
 
-  for (int i = 0; i < n_iter; ++i) {
+  for (int i = 0; i < n_starts; ++i) {
     place(inc, rgen);
     if (!inc.legal()) continue;
     optimize(inc, rgen);
-    costs.push_back(inc.cost());
     mappings.push_back(inc.mapping());
   }
 

@@ -15,7 +15,7 @@ struct Problem {
 std::int64_t computeBipartCost(const Hypergraph&, const Mapping&);
 
 // Main solving function
-std::vector<Mapping> solve(const Problem &pb);
+std::vector<Mapping> solve(const Problem &pb, int n_starts);
 
 }  // End namespace minipart
 
