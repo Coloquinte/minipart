@@ -290,7 +290,7 @@ void reportResults(const Problem &pb, const std::vector<Mapping> &mappings, std:
 
   auto summary = computeAvgAndDev(costs);
   s << std::fixed << std::setw(10) << std::setprecision(2);
-  s << "Cost: average " << summary.first  << ", deviation " << summary.second  << "%" << std::endl;
+  s << "Cost: average " << summary.first  << ", minimum " << *std::min_element(costs.begin(), costs.end()) << ", deviation " << summary.second  << "%" << std::endl;
 
   std::vector<int> cut_counts = getCutCounts(pb.hypergraph, mappings);
   s << "\nCut edges: " << std::endl;

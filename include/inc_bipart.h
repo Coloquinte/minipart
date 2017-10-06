@@ -15,6 +15,7 @@ class IncBipart {
 
  public:
   IncBipart(const Problem &pb);
+  IncBipart(const Problem &pb, const Mapping &);
 
   std::size_t nNodes() const { return h_.nNodes(); }
   std::size_t nEdges() const { return h_.nEdges(); }
@@ -66,6 +67,17 @@ class IncBipart {
 IncBipart::IncBipart(const Problem &pb)
 : h_(pb.hypergraph)
 , mapping_(pb.hypergraph.nNodes())
+, demands_ (pb.demands)
+, capacities_ (pb.capacities) {
+  edgeState_ = initState();
+  cost_ = initCost();
+  gains_ = initGains();
+  remaining_ = initRemaining();
+}
+
+IncBipart::IncBipart(const Problem &pb, const Mapping &m)
+: h_(pb.hypergraph)
+, mapping_(m)
 , demands_ (pb.demands)
 , capacities_ (pb.capacities) {
   edgeState_ = initState();

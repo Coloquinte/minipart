@@ -80,11 +80,6 @@ Problem parseGraph(const po::variables_map &vm) {
   return readHMetis(hf);
 }
 
-void exportGraph(const po::variables_map &vm, const Problem &pb) {
-  std::ofstream hf(vm["dump-hmetis"].as<std::string>());
-  writeHMetis(pb, hf);
-}
-
 void setupCapacities(const po::variables_map &vm, Problem &pb) {
   std::vector<int> totals(pb.demands.size2(), 0);
   for (std::size_t i = 0; i < pb.demands.size1(); ++i) {
@@ -105,7 +100,10 @@ void setupCapacities(const po::variables_map &vm, Problem &pb) {
 }
 
 void reportInputs(const po::variables_map &vm, Problem &pb) {
-  if (vm.count("dump-hmetis")) exportGraph(vm, pb);
+  if (vm.count("dump-hmetis")) {
+    std::ofstream hf(vm["dump-hmetis"].as<std::string>());
+    writeHMetis(pb, hf);
+  }
   if (vm.count("stats")) reportStats(pb, std::cout);
 }
 

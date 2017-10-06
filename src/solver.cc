@@ -1,9 +1,7 @@
 // Copyright (C) 2017 Gabriel Gouvine - All Rights Reserved
 
 #include "inc_bipart.h"
-
-#include <iostream>
-#include <iomanip>
+#include "coarsener.h"
 
 namespace minipart {
 
@@ -53,6 +51,38 @@ void optimize(IncBipart &inc, std::minstd_rand &rgen) {
   }
 }
 
+void coarsen_recurse(const Problem &pb, std::vector<Mapping> &mappings, std::minstd_rand &rgen);
+void optimize_recurse(const Problem &pb, std::vector<Mapping> &mappings, std::minstd_rand &rgen);
+
+void coarsen_recurse(const Problem &pb, std::vector<Mapping> &mappings, std::minstd_rand &rgen) {
+  Coarsening coarsening = inferCoarsening(mappings);
+  if (coarsening.nNodesOut() < 10 || coarsening.nNodesOut() >= 0.95 * pb.hypergraph.nNodes()) {
+    return;
+  }
+
+  Problem c_pb = coarsening(pb);
+  std::vector<Mapping> c_mappings;
+  
+  for (const Mapping &m : mappings) {
+    auto c_m = coarsening(m);
+    assert (computeBipartCost(pb.hypergraph, m) == computeBipartCost(c_pb.hypergraph, c_m));
+    c_mappings.push_back(c_m);
+  }
+  optimize_recurse(c_pb, c_mappings, rgen);
+  for (std::size_t i = 0; i < mappings.size(); ++i) {
+    mappings[i] = coarsening.reverse(c_mappings[i]);
+  }
+}
+
+void optimize_recurse(const Problem &pb, std::vector<Mapping> &mappings, std::minstd_rand &rgen) {
+  for (Mapping &m : mappings) {
+    IncBipart inc(pb, m);
+    optimize(inc, rgen);
+    m = inc.mapping();
+  }
+  coarsen_recurse(pb, mappings, rgen);
+}
+
 std::vector<Mapping> solve(const Problem &pb, int n_starts) {
   std::minstd_rand rgen;
   IncBipart inc(pb);
@@ -66,6 +96,11 @@ std::vector<Mapping> solve(const Problem &pb, int n_starts) {
     mappings.push_back(inc.mapping());
   }
 
+  coarsen_recurse(pb, mappings, rgen);
+  const int n_cycles = 3;
+  for (int i = 0; i < n_cycles; ++i) {
+    optimize_recurse(pb, mappings, rgen);
+  }
   return mappings;
 }
 

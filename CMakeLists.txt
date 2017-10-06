@@ -15,6 +15,7 @@ option(BUILD_TEST "Build unit tests" ON)
 SET (SOURCES
   src/hypergraph.cc
   src/io.cc
+  src/coarsener.cc
   src/solver.cc)
 
 add_library(libminipart ${SOURCES})
