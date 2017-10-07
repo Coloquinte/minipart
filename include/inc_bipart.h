@@ -22,6 +22,8 @@ class IncBipart {
   std::size_t nResources() const { return capacities_.size2(); }
 
   Range<Node> nodes() const { return h_.nodes(); }
+  Range<Edge> edges() const { return h_.edges(); }
+  Slice<Node> nodes(Edge e) const { return h_.nodes(e); }
 
   Weight cost() const { return cost_; }
   bool legal() const;

@@ -3,6 +3,7 @@
 #include "coarsener.h"
 
 #include <unordered_map>
+#include <bitset>
 
 namespace minipart {
 
@@ -73,19 +74,21 @@ Mapping Coarsening::reverse (const Mapping &m) const {
 }
 
 Coarsening inferCoarsening(const std::vector<Mapping> &mappings) {
-  assert (mappings.size() <= 64);
+  const int MaxSize = 512;
+  assert (mappings.size() <= MaxSize);
 
-  std::vector<std::uint64_t> placements(mappings.front().nNodes(), 0);
+  std::vector<std::bitset<MaxSize> > placements(mappings.front().nNodes(), 0);
   for (const Mapping &m : mappings) {
     assert (m.nNodes() == placements.size());
     for (std::size_t i = 0; i < m.nNodes(); ++i) {
-      placements[i] = placements[i] << 1 | m[Node(i)].id;
+      placements[i] <<= 1;
+      placements[i].set(0, m[Node(i)].id);
     }
   }
 
   std::size_t cur_id = 0;
-  std::unordered_map<std::uint64_t, std::size_t> placement_to_coarsening;
-  for (std::uint64_t pl : placements) {
+  std::unordered_map<std::bitset<MaxSize>, std::size_t> placement_to_coarsening;
+  for (auto pl : placements) {
     bool inserted = placement_to_coarsening.emplace(pl, cur_id).second;
     if (inserted) ++cur_id;
   }
