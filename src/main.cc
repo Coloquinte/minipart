@@ -28,6 +28,9 @@ po::options_description getOptions() {
   desc.add_options()("starts", po::value<int>()->default_value(32),
       "number of starting points");
 
+  desc.add_options()("seed", po::value<std::size_t>()->default_value(0),
+      "random generator seed");
+
   desc.add_options()("stats", "print problem statistics");
 
   return desc;
@@ -113,7 +116,11 @@ int main(int argc, char **argv) {
   setupCapacities(vm, pb);
   reportInputs(vm, pb);
 
-  std::vector<Mapping> mappings = solve(pb, vm["starts"].as<int>());
+  SolverOptions opt;
+  opt.n_starts = vm["starts"].as<int>();
+  opt.seed = vm["seed"].as<std::size_t>();
+
+  std::vector<Mapping> mappings = solve(pb, opt);
   reportResults(pb, mappings, std::cout);
 
   return 0;

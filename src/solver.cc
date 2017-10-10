@@ -197,10 +197,7 @@ void non_negative_gain_pass(IncBipart &inc, std::minstd_rand &rgen, const int ma
 }
 
 template <typename Queue>
-void probing_pass(IncBipart &inc, std::minstd_rand &rgen, const int max_moves_per_probe = 5) {
-  std::vector<Node> nodes (inc.nodes().begin(), inc.nodes().end());
-  std::shuffle(nodes.begin(), nodes.end(), rgen);
-
+void probing_pass(IncBipart &inc, const std::vector<Node> &nodes, int max_moves_per_probe) {
   Queue q(inc);
   std::vector<Node> trail;
 
@@ -231,6 +228,20 @@ void probing_pass(IncBipart &inc, std::minstd_rand &rgen, const int max_moves_pe
   }
 }
 
+template <typename Queue>
+void probing_pass(IncBipart &inc, std::minstd_rand &rgen, int max_moves_per_probe) {
+  std::vector<Node> nodes;
+  for (Node n : inc.nodes()) {
+    bool frontier = false;
+    for (Edge e : inc.edges(n)) {
+      frontier |= inc.cut(e);
+    }
+    if (frontier) nodes.push_back(n);
+  }
+  std::shuffle(nodes.begin(), nodes.end(), rgen);
+  probing_pass<Queue>(inc, nodes, max_moves_per_probe);
+}
+
 void move_all(IncBipart &inc, Edge e, const std::vector<char> &dest) {
   std::size_t i = 0;
   for (Node n : inc.nodes(e)) {
@@ -240,11 +251,8 @@ void move_all(IncBipart &inc, Edge e, const std::vector<char> &dest) {
   }
 }
 
-void edge_centric_pass(IncBipart &inc, std::minstd_rand &rgen) {
-  std::vector<Edge> edges (inc.edges().begin(), inc.edges().end());
-  std::shuffle(edges.begin(), edges.end(), rgen);
-
-  for (auto e : edges) {
+void edge_centric_pass(IncBipart &inc, const std::vector<Edge> &edges) {
+  for (Edge e : edges) {
     // Try to move the entire edge in both directions
     std::vector<char> initial;
     for (Node n : inc.nodes(e)) {
@@ -269,14 +277,23 @@ void edge_centric_pass(IncBipart &inc, std::minstd_rand &rgen) {
   }
 }
 
+void edge_centric_pass(IncBipart &inc, std::minstd_rand &rgen) {
+  std::vector<Edge> edges;
+  for (auto e : inc.edges()) {
+    if (inc.cut(e)) edges.push_back(e);
+  }
+  std::shuffle(edges.begin(), edges.end(), rgen);
+  edge_centric_pass(inc, edges);
+}
+
 void place(IncBipart &inc, std::minstd_rand &rgen) {
   random_placement_pass(inc, rgen);
 }
 
 void optimize(IncBipart &inc, std::minstd_rand &rgen) {
   non_negative_gain_pass<ThresholdQueue>(inc, rgen);
+  probing_pass<ThresholdQueue>(inc, rgen, 5);
   //edge_centric_pass(inc, rgen);
-  //probing_pass<ThresholdQueue>(inc, rgen);
 }
 
 std::vector<Mapping> place(const Problem &pb, int n_starts, std::minstd_rand &rgen) {
@@ -327,11 +344,10 @@ void optimize_recurse(const Problem &pb, std::vector<Mapping> &mappings, std::mi
   coarsen_recurse(pb, mappings, rgen);
 }
 
-std::vector<Mapping> solve(const Problem &pb, int n_starts) {
-  std::minstd_rand rgen;
+std::vector<Mapping> solve(const Problem &pb, const SolverOptions &options) {
+  std::minstd_rand rgen(options.seed == 0 ? 1 : options.seed);
 
-  std::vector<Mapping> mappings = place(pb, n_starts, rgen);
-  optimize(pb, mappings, rgen);
+  std::vector<Mapping> mappings = place(pb, options.n_starts, rgen);
 
   const int n_cycles = 3;
   for (int i = 0; i < n_cycles; ++i) {
