@@ -292,6 +292,7 @@ void reportResults(const Problem &pb, const std::vector<Mapping> &mappings, std:
   s << std::fixed << std::setw(10) << std::setprecision(2);
   s << "Cost: average " << summary.first  << ", minimum " << *std::min_element(costs.begin(), costs.end()) << ", deviation " << summary.second  << "%" << std::endl;
 
+  /*
   std::vector<int> cut_counts = getCutCounts(pb.hypergraph, mappings);
   s << "\nCut edges: " << std::endl;
   for (double percentage = 0.5; percentage <= 50; percentage *= 2) {
@@ -299,6 +300,7 @@ void reportResults(const Problem &pb, const std::vector<Mapping> &mappings, std:
     int nb = getCutUnderCount(cut_counts, max_count);
     s << "<= " << percentage << "%: " << 100.0 * nb / cut_counts.size() << "%" << std::endl;
   }
+  */
 
 }
 

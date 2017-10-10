@@ -24,6 +24,7 @@ class IncBipart {
   Range<Node> nodes() const { return h_.nodes(); }
   Range<Edge> edges() const { return h_.edges(); }
   Slice<Node> nodes(Edge e) const { return h_.nodes(e); }
+  Slice<Edge> edges(Node n) const { return h_.edges(n); }
 
   Weight cost() const { return cost_; }
   bool legal() const;
@@ -45,6 +46,7 @@ class IncBipart {
   bool cut(Edge e) const { return edgeState_[e.id][0] != 0 && edgeState_[e.id][1] != 0; }
   bool overflow(bool partition) const;
 
+  const Hypergraph &hypergraph() const { return h_; }
   void checkConsistency() const;
 
  private:

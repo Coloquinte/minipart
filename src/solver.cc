@@ -60,6 +60,65 @@ class ThresholdQueue {
   const IncBipart &inc_;
 };
 
+class FMQueue {
+ public:
+  FMQueue(const IncBipart &inc)
+    : inc_(inc)
+    , last_bucket_(0) {
+    max_gain_ = 0;
+    for (Node n : inc.nodes()) {
+      Weight loc_gain = 0;
+      for (Edge e : inc.edges(n)) {
+        loc_gain += inc.hypergraph().weight(e);
+      }
+      max_gain_ = std::max(loc_gain, max_gain_);
+    }
+    buckets_.resize(2 * max_gain_ + 1);
+  }
+
+  bool empty() {
+    while (true) {
+      while (last_bucket_ != 0 && buckets_[last_bucket_].empty()) {
+        --last_bucket_;
+      }
+      if (buckets_[last_bucket_].empty()) return true;
+      Node n = buckets_[last_bucket_].back();
+      Weight bucket = inc_.gain(n) + max_gain_;
+      if (bucket != last_bucket_) {
+        buckets_[last_bucket_].pop_back();
+        buckets_[bucket].push_back(n);
+        last_bucket_ = std::max(last_bucket_, bucket);
+      }
+      else return false;
+    }
+  }
+
+  Node pop() {
+    empty(); // Consume all out-of-place nodes
+    Node n = buckets_[last_bucket_].back();
+    buckets_[last_bucket_].pop_back();
+    return n;
+  }
+
+  void push(Node n) {
+    Weight bucket = max_gain_ + inc_.gain(n);
+    buckets_[bucket].push_back(n);
+    last_bucket_ = std::max(bucket, last_bucket_);
+  }
+
+  void clear() {
+    for (auto & bucket : buckets_) {
+      bucket.clear();
+    }
+  }
+
+ private:
+  const IncBipart &inc_;
+  std::vector<std::vector<Node> > buckets_;
+  Weight last_bucket_;
+  Weight max_gain_;
+};
+
 void random_placement_pass(IncBipart &inc, std::minstd_rand &rgen) {
   std::bernoulli_distribution dist;
   for (auto n : inc.nodes()) {
@@ -79,6 +138,7 @@ void traction_placement_pass(IncBipart &inc, std::minstd_rand &rgen) {
   std::vector<Node> nodes (inc.nodes().begin(), inc.nodes().end());
   std::shuffle(nodes.begin(), nodes.end(), rgen);
 
+  // Put a limit on possible quadratic complexity: better fail early
   std::size_t moves_left = 2 * inc.nNodes();
 
   ThresholdQueue q(inc);
@@ -89,8 +149,6 @@ void traction_placement_pass(IncBipart &inc, std::minstd_rand &rgen) {
     nodes.pop_back();
 
     // Pull other nodes with it
-    // Technically possible to have quadratic complexity if the overflow moves from one side to the other
-    // Hopefully very uncommon in practice
     do {
       Node n = q.pop();
       if (!inc.overflow(inc.mapping(n))) continue;
@@ -99,29 +157,30 @@ void traction_placement_pass(IncBipart &inc, std::minstd_rand &rgen) {
   }
 }
 
+template <typename Queue>
 void positive_gain_pass(IncBipart &inc, std::minstd_rand &rgen) {
   std::vector<Node> nodes (inc.nodes().begin(), inc.nodes().end());
   std::shuffle(nodes.begin(), nodes.end(), rgen);
 
-  std::vector<Node> active_set;
+  Queue q(inc);
 
   for (auto n : nodes) {
-    active_set.push_back(n);
+    q.push_back(n);
   }
 
-  while (!active_set.empty()) {
-    Node n = active_set.back();
-    active_set.pop_back();
+  while (!q.empty()) {
+    Node n = q.pop();
     if (inc.gain(n) <= 0) continue;
-    inc.tryMove(n, [&](Node o, Weight w) { active_set.push_back(o); });
+    inc.tryMove(n, [&](Node o, Weight w) { q.push(o); });
   }
 }
 
-void non_negative_gain_pass(IncBipart &inc, std::minstd_rand &rgen, const int max_zero_gain_moves = 2) {
+template <typename Queue>
+void non_negative_gain_pass(IncBipart &inc, std::minstd_rand &rgen, const int max_zero_gain_moves = 1) {
   std::vector<Node> nodes (inc.nodes().begin(), inc.nodes().end());
   std::shuffle(nodes.begin(), nodes.end(), rgen);
 
-  ThresholdQueue q(inc);
+  Queue q(inc);
   std::vector<int> zero_gain_moves(inc.nNodes(), 0);
 
   for (auto n : nodes) {
@@ -132,8 +191,43 @@ void non_negative_gain_pass(IncBipart &inc, std::minstd_rand &rgen, const int ma
     Node n = q.pop();
     Weight g = inc.gain(n);
     if (g < 0) break;
-    if (g == 0 && ++zero_gain_moves[n.id] >= max_zero_gain_moves) continue;
+    if (g == 0 && ++zero_gain_moves[n.id] > max_zero_gain_moves) continue;
     inc.tryMove(n, [&](Node o, int w) { q.push(o); });
+  }
+}
+
+template <typename Queue>
+void probing_pass(IncBipart &inc, std::minstd_rand &rgen, const int max_moves_per_probe = 5) {
+  std::vector<Node> nodes (inc.nodes().begin(), inc.nodes().end());
+  std::shuffle(nodes.begin(), nodes.end(), rgen);
+
+  Queue q(inc);
+  std::vector<Node> trail;
+
+  for (auto n : nodes) {
+    auto best_cost = inc.cost();
+    int moves_left = max_moves_per_probe;
+
+    q.push(n);
+    while (!q.empty() && --moves_left) {
+      Node n = q.pop();
+      if (inc.tryMove(n, [&](Node o, int w) { q.push(o); })) {
+        trail.push_back(n);
+      }
+
+      if (inc.cost() < best_cost) {
+        trail.clear();
+        moves_left = max_moves_per_probe;
+        best_cost = inc.cost();
+      }
+    }
+
+    for (Node n : trail) {
+      inc.move(n);
+    }
+
+    q.clear();
+    trail.clear();
   }
 }
 
@@ -176,11 +270,13 @@ void edge_centric_pass(IncBipart &inc, std::minstd_rand &rgen) {
 }
 
 void place(IncBipart &inc, std::minstd_rand &rgen) {
-  traction_placement_pass(inc, rgen);
+  random_placement_pass(inc, rgen);
 }
 
 void optimize(IncBipart &inc, std::minstd_rand &rgen) {
-  non_negative_gain_pass(inc, rgen);
+  non_negative_gain_pass<ThresholdQueue>(inc, rgen);
+  //edge_centric_pass(inc, rgen);
+  //probing_pass<ThresholdQueue>(inc, rgen);
 }
 
 std::vector<Mapping> place(const Problem &pb, int n_starts, std::minstd_rand &rgen) {
