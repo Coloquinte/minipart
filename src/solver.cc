@@ -262,7 +262,7 @@ void edge_centric_pass(IncBipart &inc, const std::vector<Edge> &edges) {
     int best_result = -1;
     for (int i = 0; i < 2; ++i) {
       move_all(inc, e, std::vector<char>(inc.nodes(e).size(), i));
-      if (inc.cost() < best_cost) {
+      if (inc.legal() && inc.cost() < best_cost) {
         best_cost = inc.cost();
         best_result = i;
       }
@@ -286,14 +286,58 @@ void edge_centric_pass(IncBipart &inc, std::minstd_rand &rgen) {
   edge_centric_pass(inc, edges);
 }
 
+void trySwap(IncBipart &inc, Node n1, Node n2) {
+  if (n1 == n2) return;
+  if (inc.mapping(n1) == inc.mapping(n2)) return;
+  if (inc.gain(n1) + inc.gain(n2) <= 0) return;
+
+  std::int64_t cost = inc.cost();
+  inc.move(n1);
+  inc.move(n2);
+  if (inc.cost() > cost || !inc.legal()) {
+    inc.move(n1);
+    inc.move(n2);
+  }
+}
+
+void tryAllSwaps(IncBipart &inc, const std::vector<Node> &nodes) {
+  for (Node n1 : nodes) {
+    if (inc.gain(n1) <= 0) continue;
+    if (inc.canMove(n1)) {
+      inc.move(n1);
+      continue;
+    }
+    for (Node n2 : nodes) {
+      trySwap(inc, n1, n2);
+    }
+  }
+}
+
+void swap_pass(IncBipart &inc, std::minstd_rand &rgen) {
+  // TODO: strict runtime limit to avoid quadratic blowup
+
+  bool positive_gain_found = false;
+  for (Node n : inc.nodes()) {
+    positive_gain_found |= (inc.gain(n) > 0);
+  }
+  if (!positive_gain_found) return;
+
+  std::vector<Node> nodes(inc.nodes().begin(), inc.nodes().end());
+  std::shuffle(nodes.begin(), nodes.end(), rgen);
+
+  tryAllSwaps(inc, nodes);
+}
+
 void place(IncBipart &inc, std::minstd_rand &rgen) {
   random_placement_pass(inc, rgen);
 }
 
 void optimize(IncBipart &inc, std::minstd_rand &rgen) {
   non_negative_gain_pass<ThresholdQueue>(inc, rgen);
+  non_negative_gain_pass<ThresholdQueue>(inc, rgen);
   probing_pass<ThresholdQueue>(inc, rgen, 5);
   //edge_centric_pass(inc, rgen);
+  swap_pass(inc, rgen);
 }
 
 std::vector<Mapping> place(const Problem &pb, int n_starts, std::minstd_rand &rgen) {
