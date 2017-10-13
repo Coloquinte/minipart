@@ -3,6 +3,8 @@
 #include "inc_bipart.h"
 #include "coarsener.h"
 
+#include <map>
+
 namespace minipart {
 
 class ThresholdQueue {
@@ -340,16 +342,14 @@ void optimize(IncBipart &inc, std::minstd_rand &rgen) {
   swap_pass(inc, rgen);
 }
 
-std::vector<Mapping> place(const Problem &pb, int n_starts, std::minstd_rand &rgen) {
-  std::vector<Mapping> mappings;
-  for (int i = 0; i < n_starts; ++i) {
+void place(const Problem &pb, std::vector<Mapping> &mappings, std::size_t n_starts, std::minstd_rand &rgen) {
+  // Only a fixed number of times: placement may actually be difficult
+  for (std::size_t i = mappings.size(); i < n_starts; ++i) {
     IncBipart inc(pb);
     place(inc, rgen);
     if (!inc.legal()) continue;
     mappings.push_back(inc.mapping());
   }
-
-  return mappings;
 }
 
 void optimize(const Problem &pb, std::vector<Mapping> &mappings, std::minstd_rand &rgen) {
@@ -363,8 +363,27 @@ void optimize(const Problem &pb, std::vector<Mapping> &mappings, std::minstd_ran
 void coarsen_recurse(const Problem &pb, std::vector<Mapping> &mappings, std::minstd_rand &rgen);
 void optimize_recurse(const Problem &pb, std::vector<Mapping> &mappings, std::minstd_rand &rgen);
 
+void sortMappings(const Problem &pb, std::vector<Mapping> &mappings) {
+  std::map<std::int64_t, Mapping> sorted_mappings;
+  for (Mapping &m : mappings) {
+    std::int64_t cost = computeBipartCost(pb.hypergraph, m);
+    sorted_mappings.emplace(cost, std::move(m));
+  }
+  mappings.clear();
+  for (auto & p : sorted_mappings) {
+    mappings.emplace_back(std::move(p.second));
+  }
+}
+
 void coarsen_recurse(const Problem &pb, std::vector<Mapping> &mappings, std::minstd_rand &rgen) {
-  Coarsening coarsening = inferCoarsening(mappings);
+  //Coarsening coarsening = inferCoarsening(mappings);
+  std::size_t target_nnodes = pb.hypergraph.nNodes() * 0.5;
+  if (target_nnodes < 20) return;
+
+  // FIXME: Keep left out mappings and insert them back?
+  sortMappings(pb, mappings);
+  Coarsening coarsening = selectForCoarsening(mappings, target_nnodes);
+
   if (coarsening.nNodesOut() < 10 || coarsening.nNodesOut() >= 0.95 * pb.hypergraph.nNodes()) {
     return;
   }
@@ -377,24 +396,27 @@ void coarsen_recurse(const Problem &pb, std::vector<Mapping> &mappings, std::min
     assert (computeBipartCost(pb.hypergraph, m) == computeBipartCost(c_pb.hypergraph, c_m));
     c_mappings.push_back(c_m);
   }
+
   optimize_recurse(c_pb, c_mappings, rgen);
-  for (std::size_t i = 0; i < mappings.size(); ++i) {
-    mappings[i] = coarsening.reverse(c_mappings[i]);
+  mappings.clear();
+  for (const Mapping &c_m : c_mappings) {
+    mappings.push_back(coarsening.reverse(c_m));
   }
 }
 
 void optimize_recurse(const Problem &pb, std::vector<Mapping> &mappings, std::minstd_rand &rgen) {
   optimize(pb, mappings, rgen);
   coarsen_recurse(pb, mappings, rgen);
+  optimize(pb, mappings, rgen);
 }
 
 std::vector<Mapping> solve(const Problem &pb, const SolverOptions &options) {
   std::minstd_rand rgen(options.seed == 0 ? 1 : options.seed);
 
-  std::vector<Mapping> mappings = place(pb, options.n_starts, rgen);
+  std::vector<Mapping> mappings;
 
-  const int n_cycles = 3;
-  for (int i = 0; i < n_cycles; ++i) {
+  for (std::size_t i = 0; i < options.n_cycles; ++i) {
+    place(pb, mappings, options.n_starts, rgen);
     optimize_recurse(pb, mappings, rgen);
   }
 

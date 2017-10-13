@@ -74,7 +74,8 @@ Mapping Coarsening::reverse (const Mapping &m) const {
 }
 
 Coarsening inferCoarsening(const std::vector<Mapping> &mappings) {
-  const int MaxSize = 512;
+  // TODO: non-blackbox algorithm, restricting coarse nodes to connected components
+  const int MaxSize = 64;
   assert (mappings.size() <= MaxSize);
 
   std::vector<std::bitset<MaxSize> > placements(mappings.front().nNodes(), 0);
@@ -96,6 +97,42 @@ Coarsening inferCoarsening(const std::vector<Mapping> &mappings) {
   for (std::size_t i = 0; i < placements.size(); ++i) {
     std::uint64_t id = placement_to_coarsening.at(placements[i]);
     ret[Node(i)] = Node(id);
+  }
+  return ret;
+}
+
+Coarsening selectForCoarsening(std::vector<Mapping> &mappings, std::size_t target_nnodes) {
+  // Select only the first few mappings to get a coarse solution
+  //   i.e. the largest solution that has that many nodes or fewer
+  // Assume the mapping are already sorted in a nice order - best first for example
+  // TODO: improve complexity
+
+  // Shortcut: avoid evaluating the cases with too few mappings
+  std::size_t min_num_mappings = 1;
+  std::size_t min_num_nodes = 2;
+  while (2 * min_num_nodes < target_nnodes) {
+    ++min_num_mappings;
+    min_num_nodes *= 2;
+  }
+  if (min_num_mappings >= mappings.size()) return inferCoarsening(mappings);
+
+  // Now select just enough to achieve the target
+  std::vector<Mapping> left_out;
+  while (mappings.size() > min_num_mappings) {
+    left_out.emplace_back(mappings.back());
+    mappings.pop_back();
+  }
+
+  Coarsening ret = inferCoarsening(mappings);
+  while (!left_out.empty()) {
+    mappings.emplace_back(left_out.back());
+    Coarsening candidate = inferCoarsening(mappings);
+    if (candidate.nNodesOut() > target_nnodes) {
+      mappings.pop_back();
+      break;
+    }
+    std::swap(candidate, ret);
+    left_out.pop_back();
   }
   return ret;
 }

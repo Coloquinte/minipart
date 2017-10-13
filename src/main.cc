@@ -25,8 +25,11 @@ po::options_description getOptions() {
   desc.add_options()("parts", po::value<std::size_t>()->default_value(2u),
       "number of partitions");
 
-  desc.add_options()("starts", po::value<int>()->default_value(32),
+  desc.add_options()("starts", po::value<std::size_t>()->default_value(32),
       "number of starting points");
+
+  desc.add_options()("v-cycles", po::value<std::size_t>()->default_value(2),
+      "number of coarsening-uncoarsening cycles");
 
   desc.add_options()("seed", po::value<std::size_t>()->default_value(0),
       "random generator seed");
@@ -117,7 +120,8 @@ int main(int argc, char **argv) {
   reportInputs(vm, pb);
 
   SolverOptions opt;
-  opt.n_starts = vm["starts"].as<int>();
+  opt.n_starts = vm["starts"].as<std::size_t>();
+  opt.n_cycles = vm["v-cycles"].as<std::size_t>();
   opt.seed = vm["seed"].as<std::size_t>();
 
   std::vector<Mapping> mappings = solve(pb, opt);

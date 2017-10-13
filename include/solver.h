@@ -15,7 +15,8 @@ struct Problem {
 std::int64_t computeBipartCost(const Hypergraph&, const Mapping&);
 
 struct SolverOptions {
-  int n_starts;
+  std::size_t n_starts;
+  std::size_t n_cycles;
   std::size_t seed;
 };
 
