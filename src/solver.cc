@@ -7,15 +7,88 @@
 
 namespace minipart {
 
+// Queue that only handles positive and zero gain
+class PosQueue {
+ public:
+  PosQueue(const IncBipart &inc)
+    : inc_(inc) {}
+
+  bool empty() {
+    while (!pos_gain_.empty()) {
+      Node n = pos_gain_.back();
+      if (inc_.gain(n) <= 0) {
+        pos_gain_.pop_back();
+        zero_gain_.push_back(n);
+      }
+      else return false;
+    }
+    while (!zero_gain_.empty()) {
+      Node n = zero_gain_.back();
+      if (inc_.gain(n) < 0) {
+        zero_gain_.pop_back();
+      }
+      else return false;
+    }
+    return true;
+  }
+
+  Node pop() {
+    empty(); // Consume all out-of-place nodes
+    if (!pos_gain_.empty()) {
+      Node n = pos_gain_.back();
+      pos_gain_.pop_back();
+      return n;
+    }
+    Node n = zero_gain_.back();
+    zero_gain_.pop_back();
+    return n;
+  }
+
+  void push(Node n) {
+    Weight g = inc_.gain(n);
+    if (g > 0) {
+      pos_gain_.push_back(n);
+    }
+    else if (g == 0) {
+      zero_gain_.push_back(n);
+    }
+  }
+
+  void clear() {
+    pos_gain_.clear();
+    zero_gain_.clear();
+  }
+
+ private:
+  std::vector<Node> pos_gain_;
+  std::vector<Node> zero_gain_;
+  const IncBipart &inc_;
+};
+
+// Queue with positive, zero, and negative gain
 class ThresholdQueue {
  public:
   ThresholdQueue(const IncBipart &inc)
     : inc_(inc) {}
 
-  bool empty() const {
-    return pos_gain_.empty()
-        && zero_gain_.empty()
-        && neg_gain_.empty();
+  bool empty() {
+    while (!pos_gain_.empty()) {
+      Node n = pos_gain_.back();
+      if (inc_.gain(n) <= 0) {
+        pos_gain_.pop_back();
+        zero_gain_.push_back(n);
+      }
+      else return false;
+    }
+    while (!zero_gain_.empty()) {
+      Node n = zero_gain_.back();
+      if (inc_.gain(n) < 0) {
+        zero_gain_.pop_back();
+        neg_gain_.push_back(n);
+      }
+      else return false;
+    }
+    return neg_gain_.empty();
   }
 
   Node pop() {
@@ -62,6 +135,7 @@ class ThresholdQueue {
   const IncBipart &inc_;
 };
 
+// Typical bucket queue
 class FMQueue {
  public:
   FMQueue(const IncBipart &inc)
@@ -335,9 +409,9 @@ void place(IncBipart &inc, std::minstd_rand &rgen) {
 }
 
 void optimize(IncBipart &inc, std::minstd_rand &rgen) {
-  non_negative_gain_pass<ThresholdQueue>(inc, rgen);
-  non_negative_gain_pass<ThresholdQueue>(inc, rgen);
-  probing_pass<ThresholdQueue>(inc, rgen, 5);
+  non_negative_gain_pass<PosQueue>(inc, rgen);
+  non_negative_gain_pass<PosQueue>(inc, rgen);
+  probing_pass<PosQueue>(inc, rgen, 5);
   //edge_centric_pass(inc, rgen);
   swap_pass(inc, rgen);
 }
