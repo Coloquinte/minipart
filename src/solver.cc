@@ -363,7 +363,7 @@ void optimize(const Problem &pb, std::vector<Mapping> &mappings, std::minstd_ran
 void coarsen_recurse(const Problem &pb, std::vector<Mapping> &mappings, std::minstd_rand &rgen);
 void optimize_recurse(const Problem &pb, std::vector<Mapping> &mappings, std::minstd_rand &rgen);
 
-void sortMappings(const Problem &pb, std::vector<Mapping> &mappings) {
+void sort_mappings(const Problem &pb, std::vector<Mapping> &mappings) {
   std::map<std::int64_t, Mapping> sorted_mappings;
   for (Mapping &m : mappings) {
     std::int64_t cost = computeBipartCost(pb.hypergraph, m);
@@ -376,13 +376,12 @@ void sortMappings(const Problem &pb, std::vector<Mapping> &mappings) {
 }
 
 void coarsen_recurse(const Problem &pb, std::vector<Mapping> &mappings, std::minstd_rand &rgen) {
-  //Coarsening coarsening = inferCoarsening(mappings);
   std::size_t target_nnodes = pb.hypergraph.nNodes() * 0.5;
   if (target_nnodes < 20) return;
 
   // FIXME: Keep left out mappings and insert them back?
-  sortMappings(pb, mappings);
-  Coarsening coarsening = selectForCoarsening(mappings, target_nnodes);
+  sort_mappings(pb, mappings);
+  Coarsening coarsening = select_for_coarsening(mappings, target_nnodes);
 
   if (coarsening.nNodesOut() < 10 || coarsening.nNodesOut() >= 0.95 * pb.hypergraph.nNodes()) {
     return;
@@ -420,6 +419,7 @@ std::vector<Mapping> solve(const Problem &pb, const SolverOptions &options) {
     optimize_recurse(pb, mappings, rgen);
   }
 
+  sort_mappings(pb, mappings);
   return mappings;
 }
 

@@ -16,8 +16,11 @@ po::options_description getOptions() {
   po::options_description desc("Minipart options");
   desc.add_options()("help,h", "print this help");
 
-  desc.add_options()("hmetis", po::value<std::string>(),
-      "filename for the .hgr file describing the hypergraph");
+  desc.add_options()("hmetis,g", po::value<std::string>(),
+      ".hgr file describing the hypergraph");
+
+  desc.add_options()("output,o", po::value<std::string>(),
+      "partitioning result file");
 
   desc.add_options()("margin", po::value<double>()->default_value(5.0),
       "margin compared to balanced partitioning (%)");
@@ -113,6 +116,15 @@ void reportInputs(const po::variables_map &vm, Problem &pb) {
   if (vm.count("stats")) reportStats(pb, std::cout);
 }
 
+void writeResult(const po::variables_map &vm, const std::vector<Mapping> &mappings) {
+  if (!mappings.empty() && vm.count("output")) {
+    std::ofstream of(vm["output"].as<std::string>());
+    for (std::size_t i = 0; i < mappings.front().nNodes(); ++i) {
+      of << (std::size_t) mappings.front()[Node(i)].id << std::endl;
+    }
+  }
+}
+
 int main(int argc, char **argv) {
   po::variables_map vm = parseArguments(argc, argv);
   Problem pb = parseGraph(vm);
@@ -126,6 +138,8 @@ int main(int argc, char **argv) {
 
   std::vector<Mapping> mappings = solve(pb, opt);
   reportResults(pb, mappings, std::cout);
+
+  writeResult(vm, mappings);
 
   return 0;
 }

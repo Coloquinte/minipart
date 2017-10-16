@@ -73,7 +73,7 @@ Mapping Coarsening::reverse (const Mapping &m) const {
   return ret;
 }
 
-Coarsening inferCoarsening(const std::vector<Mapping> &mappings) {
+Coarsening infer_coarsening(const std::vector<Mapping> &mappings) {
   // TODO: non-blackbox algorithm, restricting coarse nodes to connected components
   const int MaxSize = 64;
   assert (mappings.size() <= MaxSize);
@@ -101,7 +101,7 @@ Coarsening inferCoarsening(const std::vector<Mapping> &mappings) {
   return ret;
 }
 
-Coarsening selectForCoarsening(std::vector<Mapping> &mappings, std::size_t target_nnodes) {
+Coarsening select_for_coarsening(std::vector<Mapping> &mappings, std::size_t target_nnodes) {
   // Select only the first few mappings to get a coarse solution
   //   i.e. the largest solution that has that many nodes or fewer
   // Assume the mapping are already sorted in a nice order - best first for example
@@ -114,7 +114,7 @@ Coarsening selectForCoarsening(std::vector<Mapping> &mappings, std::size_t targe
     ++min_num_mappings;
     min_num_nodes *= 2;
   }
-  if (min_num_mappings >= mappings.size()) return inferCoarsening(mappings);
+  if (min_num_mappings >= mappings.size()) return infer_coarsening(mappings);
 
   // Now select just enough to achieve the target
   std::vector<Mapping> left_out;
@@ -123,10 +123,10 @@ Coarsening selectForCoarsening(std::vector<Mapping> &mappings, std::size_t targe
     mappings.pop_back();
   }
 
-  Coarsening ret = inferCoarsening(mappings);
+  Coarsening ret = infer_coarsening(mappings);
   while (!left_out.empty()) {
     mappings.emplace_back(left_out.back());
-    Coarsening candidate = inferCoarsening(mappings);
+    Coarsening candidate = infer_coarsening(mappings);
     if (candidate.nNodesOut() > target_nnodes) {
       mappings.pop_back();
       break;

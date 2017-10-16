@@ -30,8 +30,8 @@ class Coarsening {
   std::size_t n_out_;
 };
 
-Coarsening inferCoarsening(const std::vector<Mapping> &mappings);
-Coarsening selectForCoarsening(std::vector<Mapping> &mappings, std::size_t target_nnodes);
+Coarsening infer_coarsening(const std::vector<Mapping> &mappings);
+Coarsening select_for_coarsening(std::vector<Mapping> &mappings, std::size_t target_nnodes);
 
 }  // End namespace minipart
 

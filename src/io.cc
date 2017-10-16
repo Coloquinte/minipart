@@ -281,6 +281,10 @@ std::size_t getCutUnderCount (const std::vector<int> &cut_counts, int max_count)
 }
 
 void reportResults(const Problem &pb, const std::vector<Mapping> &mappings, std::ostream &s) {
+  if (mappings.empty()) {
+    std::cout << "No feasible placement" << std::endl;
+    return;
+  }
   std::cout << mappings.size() << " feasible placements, ";
 
   std::vector<int> costs;
