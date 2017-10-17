@@ -26,12 +26,11 @@ BOOST_AUTO_TEST_CASE(hypergraph) {
   H::Builder b(nNodes);
   addRandomEdges(b, nEdges, 3.0, 10.0, rgen, 1u);
   pb.hypergraph = b;
-  pb.hypergraph.checkConsistency();
   pb.demands = getRandomArray(nNodes, nResources, 10, rgen);
 
   std::stringstream s;
   writeHMetis(pb, s);
-  Problem copied = readHMetis(s);
+  Problem copied = readHMetis(s, false);
   BOOST_CHECK_EQUAL (pb.hypergraph.nNodes(), copied.hypergraph.nNodes());
   BOOST_CHECK_EQUAL (pb.hypergraph.nEdges(), copied.hypergraph.nEdges());
   BOOST_CHECK_EQUAL (pb.hypergraph.nPins(),  copied.hypergraph.nPins());

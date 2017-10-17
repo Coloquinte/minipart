@@ -8,7 +8,7 @@
 
 namespace minipart {
 
-Problem readHMetis(std::istream &s);
+Problem readHMetis(std::istream &s, bool vectorize=true);
 void writeHMetis(const Problem &pb, std::ostream &s);
 
 void reportStats(const Problem &pb, std::ostream &s);

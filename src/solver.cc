@@ -417,9 +417,11 @@ void optimize(IncBipart &inc, std::minstd_rand &rgen) {
 }
 
 void place(const Problem &pb, std::vector<Mapping> &mappings, std::size_t n_starts, std::minstd_rand &rgen) {
+  // Reuse the same object (rather than special-purpose constructor)
+  IncBipart reused(pb);
   // Only a fixed number of times: placement may actually be difficult
   for (std::size_t i = mappings.size(); i < n_starts; ++i) {
-    IncBipart inc(pb);
+    IncBipart inc = reused;
     place(inc, rgen);
     if (!inc.legal()) continue;
     mappings.push_back(inc.mapping());
@@ -438,7 +440,7 @@ void coarsen_recurse(const Problem &pb, std::vector<Mapping> &mappings, std::min
 void optimize_recurse(const Problem &pb, std::vector<Mapping> &mappings, std::minstd_rand &rgen);
 
 void sort_mappings(const Problem &pb, std::vector<Mapping> &mappings) {
-  std::map<std::int64_t, Mapping> sorted_mappings;
+  std::multimap<std::int64_t, Mapping> sorted_mappings;
   for (Mapping &m : mappings) {
     std::int64_t cost = computeBipartCost(pb.hypergraph, m);
     sorted_mappings.emplace(cost, std::move(m));
@@ -473,7 +475,9 @@ void coarsen_recurse(const Problem &pb, std::vector<Mapping> &mappings, std::min
   optimize_recurse(c_pb, c_mappings, rgen);
   mappings.clear();
   for (const Mapping &c_m : c_mappings) {
-    mappings.push_back(coarsening.reverse(c_m));
+    auto m = coarsening.reverse(c_m);
+    assert (computeBipartCost(pb.hypergraph, m) == computeBipartCost(c_pb.hypergraph, c_m));
+    mappings.push_back(m);
   }
 }
 

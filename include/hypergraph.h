@@ -65,12 +65,22 @@ class HypergraphBuilder {
 
   std::size_t nEdges() const;
   std::size_t nNodes() const;
+  std::size_t nPins() const;
+
+  Range<E> edges() const;
+  Slice<N> nodes   (Edge) const;
+  Weight weight(Edge) const;
 
   HypergraphBuilder(Index nNodes=0);
   N addNode();
   template <class It>
   E addEdge(It begin, It end, Weight w=1);
   E addEdge(std::initializer_list<N>, Weight w=1);
+
+  // Sort and remove duplicate pins
+  void finalize();
+  // Merge identical edges
+  void vectorize();
 
  private:
   std::vector<HEdgeData > edges_;
@@ -132,6 +142,22 @@ inline std::size_t HypergraphBuilder::nEdges() const {
 
 inline std::size_t HypergraphBuilder::nNodes() const {
   return _nNodes;
+}
+
+inline std::size_t HypergraphBuilder::nPins() const {
+  return edge_pins_.size();
+}
+
+inline Range<Edge > HypergraphBuilder::edges() const {
+  return Range<E>(E(0), E(nEdges()));
+}
+
+inline Slice<Node > HypergraphBuilder::nodes(Edge e) const {
+  return Slice<Node >(edge_pins_.begin() + edges_[e.id].limit_, edge_pins_.begin() + edges_[e.id+1].limit_);
+}
+
+inline Weight HypergraphBuilder::weight(Edge e) const {
+  return edges_[e.id+1].weight_;
 }
 
 inline Node HypergraphBuilder::addNode() {

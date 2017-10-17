@@ -21,7 +21,7 @@ std::stringstream getHMetisLine(std::istream &s) {
   return std::stringstream(tmp);
 }
 
-Hypergraph readHMetisGraph(std::istream &s, std::size_t nNodes, std::size_t nEdges, bool hasEdgeWeights) {
+HypergraphBuilder readHMetisGraph(std::istream &s, std::size_t nNodes, std::size_t nEdges, bool hasEdgeWeights) {
   std::stringstream ss;
   HypergraphBuilder h(nNodes);
 
@@ -81,7 +81,7 @@ Matrix<Resource> readHMetisResources(std::istream &s, std::size_t nNodes, bool h
 }
 } // End anonymous namespace
 
-Problem readHMetis(std::istream &s) {
+Problem readHMetis(std::istream &s, bool vectorize) {
   Problem ret;
 
   std::size_t nNodes, nEdges, params;
@@ -97,7 +97,9 @@ Problem readHMetis(std::istream &s) {
   bool hasEdgeWeights = (params == 11) || (params == 1);
   bool hasNodeWeights = (params == 11) || (params == 10);
 
-  ret.hypergraph = readHMetisGraph(s, nNodes, nEdges, hasEdgeWeights);
+  auto b = readHMetisGraph(s, nNodes, nEdges, hasEdgeWeights);
+  if (vectorize) b.vectorize();
+  ret.hypergraph = b;
   ret.demands = readHMetisResources(s, nNodes, hasNodeWeights);
   return ret;
 }

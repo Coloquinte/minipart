@@ -68,6 +68,12 @@ po::variables_map parseArguments(int argc, char **argv) {
     exit(1);
   }
 
+  assert(vm.count("margin"));
+  assert(vm.count("parts"));
+  assert(vm.count("starts"));
+  assert(vm.count("seed"));
+  assert(vm.count("v-cycles"));
+
   if (vm.count("help")) {
     std::cout << desc << std::endl;
     exit(0);
@@ -77,10 +83,11 @@ po::variables_map parseArguments(int argc, char **argv) {
     std::cout << desc << std::endl;
     exit(1);
   }
+  else if(vm["parts"].as<std::size_t>() != 2) {
+    std::cout << "Only bipartitioning is supported" << std::endl;
+    exit(1);
+  }
 
-  assert(vm.count("margin"));
-  assert(vm.count("parts"));
-  assert(vm.count("starts"));
   return vm;
 }
 
@@ -129,12 +136,13 @@ int main(int argc, char **argv) {
   po::variables_map vm = parseArguments(argc, argv);
   Problem pb = parseGraph(vm);
   setupCapacities(vm, pb);
-  reportInputs(vm, pb);
 
   SolverOptions opt;
   opt.n_starts = vm["starts"].as<std::size_t>();
   opt.n_cycles = vm["v-cycles"].as<std::size_t>();
   opt.seed = vm["seed"].as<std::size_t>();
+
+  reportInputs(vm, pb);
 
   std::vector<Mapping> mappings = solve(pb, opt);
   reportResults(pb, mappings, std::cout);

@@ -3,7 +3,6 @@
 #include "coarsener.h"
 
 #include <unordered_map>
-#include <bitset>
 
 namespace minipart {
 
@@ -50,13 +49,10 @@ Problem Coarsening::operator() (const Problem &pb) const {
     for (Node n : pb.hypergraph.nodes(e)) {
       nodes.push_back(m_[n.id]);
     }
-    std::sort(nodes.begin(), nodes.end());
-    nodes.resize(std::unique(nodes.begin(), nodes.end()) - nodes.begin());
-    if (nodes.size() > 1) {
-      b.addEdge(nodes.begin(), nodes.end(), pb.hypergraph.weight(e));
-    }
+    b.addEdge(nodes.begin(), nodes.end(), pb.hypergraph.weight(e));
     nodes.clear();
   }
+  b.vectorize();
   ret.hypergraph = b;
 
   return ret;
@@ -75,27 +71,27 @@ Mapping Coarsening::reverse (const Mapping &m) const {
 
 Coarsening infer_coarsening(const std::vector<Mapping> &mappings) {
   // TODO: non-blackbox algorithm, restricting coarse nodes to connected components
-  const int MaxSize = 64;
-  assert (mappings.size() <= MaxSize);
+  assert (mappings.size() <= 64);
 
-  std::vector<std::bitset<MaxSize> > placements(mappings.front().nNodes(), 0);
-  for (const Mapping &m : mappings) {
-    assert (m.nNodes() == placements.size());
-    for (std::size_t i = 0; i < m.nNodes(); ++i) {
-      placements[i] <<= 1;
-      placements[i].set(0, m[Node(i)].id);
+  std::vector<std::uint64_t> placements(mappings.front().nNodes(), 0);
+  for (std::size_t i = 0; i < placements.size(); ++i) {
+    std::uint64_t bs = 0;
+    for (const Mapping &m : mappings) {
+      bs = (bs << 1) | m[Node(i)].id;
     }
+    placements[i] = bs;
   }
 
   std::size_t cur_id = 0;
-  std::unordered_map<std::bitset<MaxSize>, std::size_t> placement_to_coarsening;
+  std::unordered_map<std::uint64_t, std::size_t> placement_to_coarsening;
+  placement_to_coarsening.reserve(placements.size());
   for (auto pl : placements) {
     bool inserted = placement_to_coarsening.emplace(pl, cur_id).second;
     if (inserted) ++cur_id;
   }
   Coarsening ret(placements.size(), cur_id+1);
   for (std::size_t i = 0; i < placements.size(); ++i) {
-    std::uint64_t id = placement_to_coarsening.at(placements[i]);
+    std::size_t id = placement_to_coarsening.at(placements[i]);
     ret[Node(i)] = Node(id);
   }
   return ret;

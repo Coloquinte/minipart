@@ -85,6 +85,7 @@ BOOST_AUTO_TEST_CASE(randGen) {
   H::Builder b(nNodes);
   addRandomEdges(b, nEdges, 3.0, 10.0, rgen);
   H g = b;
+  g.checkConsistency();
 
   BOOST_CHECK (g.nNodes() == nNodes);
   BOOST_CHECK (g.nEdges() >= nEdges * 0.95);
