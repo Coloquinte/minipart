@@ -12,6 +12,39 @@
 using namespace minipart;
 namespace po = boost::program_options;
 
+void check_margin(double p) {
+  if (p < 0.0 || !std::isfinite(p)) {
+    throw std::runtime_error("Option --margin must be non-negative");
+  }
+}
+
+void check_parts(std::size_t p) {
+  if (p < 2) {
+    throw std::runtime_error("Option --parts must be 2 or greater");
+  }
+  else if (p > 2) {
+    throw std::runtime_error("Only bipartitioning is supported at this point; other values for option --parts are not available");
+  }
+}
+
+void check_starts(std::size_t p) {
+  if (p == 0) {
+    throw std::runtime_error("Option --starts must be 1 or greater");
+  }
+}
+
+void check_cycles(std::size_t p) {
+  if (p == 0) {
+    throw std::runtime_error("Option --v-cycles must be 1 or greater");
+  }
+}
+
+void check_threads(std::size_t p) {
+  if (p == 0) {
+    throw std::runtime_error("Option --threads must be 1 or greater");
+  }
+}
+
 po::options_description getOptions() {
   po::options_description desc("Minipart options");
   desc.add_options()("help,h", "print this help");
@@ -22,22 +55,27 @@ po::options_description getOptions() {
   desc.add_options()("output,o", po::value<std::string>(),
       "partitioning result file");
 
-  desc.add_options()("margin", po::value<double>()->default_value(5.0),
+  desc.add_options()("margin", po::value<double>()->default_value(5.0)
+      ->notifier(check_margin),
       "margin compared to balanced partitioning (%)");
 
-  desc.add_options()("parts", po::value<std::size_t>()->default_value(2u),
+  desc.add_options()("parts", po::value<std::size_t>()->default_value(2u)
+      ->notifier(check_parts),
       "number of partitions");
 
-  desc.add_options()("starts", po::value<std::size_t>()->default_value(32),
+  desc.add_options()("starts", po::value<std::size_t>()->default_value(32)
+      ->notifier(check_starts),
       "number of starting points");
 
-  desc.add_options()("v-cycles", po::value<std::size_t>()->default_value(2),
+  desc.add_options()("v-cycles", po::value<std::size_t>()->default_value(2)
+      ->notifier(check_cycles),
       "number of coarsening-uncoarsening cycles");
 
-  desc.add_options()("threads,j", po::value<std::size_t>()->default_value(2),
+  desc.add_options()("threads,j", po::value<std::size_t>()->default_value(2)
+      ->notifier(check_threads),
       "number of concurrent threads");
 
-  desc.add_options()("seed", po::value<std::size_t>()->default_value(0),
+  desc.add_options()("seed", po::value<std::size_t>()->default_value(1),
       "random generator seed");
 
   desc.add_options()("stats", "print problem statistics");
@@ -68,6 +106,11 @@ po::variables_map parseArguments(int argc, char **argv) {
     std::cerr << "Error parsing command line arguments: ";
     std::cerr << e.what() << std::endl << std::endl;
     std::cout << desc << std::endl;
+    exit(1);
+  }
+  catch (std::runtime_error &e) {
+    std::cerr << "Error parsing command line arguments: ";
+    std::cerr << e.what() << std::endl << std::endl;
     exit(1);
   }
 
