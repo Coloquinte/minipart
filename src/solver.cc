@@ -1,6 +1,5 @@
 // Copyright (C) 2017 Gabriel Gouvine - All Rights Reserved
 
-#include "inc_bipart.h"
 #include "coarsener.h"
 #include "queues.h"
 
@@ -53,6 +52,18 @@ void traction_placement_pass(IncBipart &inc, std::minstd_rand &rgen) {
       if (!inc.overflow(inc.mapping(n))) continue;
       inc.move(n, [&](Node o, Weight w) { q.push(o); });
     } while (!q.empty() && --moves_left);
+  }
+}
+
+void greedy_pass(IncBipart &inc, std::minstd_rand &rgen, int passes=3) {
+  for (int i = 0; i < passes; ++i) {
+    std::vector<Node> q(inc.nodes().begin(), inc.nodes().end());
+    std::shuffle(q.begin(), q.end(), rgen);
+    for (Node n : q) {
+      if (inc.gain(n) >= 0) {
+        inc.tryMove(n);
+      }
+    }
   }
 }
 

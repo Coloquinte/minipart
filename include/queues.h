@@ -1,6 +1,16 @@
 // Copyright (C) 2017 Gabriel Gouvine - All Rights Reserved
 
-#include "common.h"
+/*
+ * This file implements priority queues with key updates, used in local search algorithms
+ * Most use the same few tricks:
+ *    - bucket-based: elements with the same priorities are put in an array
+ *    - lazy: elements are pushed each time they are updated; consistency with their priority is checked at pop
+ *    - LIFO tie resolution: priority ties are resolved in last-in first-out order
+ */
+
+#pragma once
+
+#include "inc_bipart.h"
 
 namespace minipart {
 
