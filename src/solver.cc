@@ -233,28 +233,56 @@ void optimize(IncBipart &inc, std::minstd_rand &rgen) {
   swap_pass(inc, rgen);
 }
 
-void place(const Problem &pb, std::vector<Mapping> &mappings, std::size_t n_starts, std::minstd_rand &rgen) {
+std::vector<std::minstd_rand> seed_multiple(std::minstd_rand &rgen, std::size_t n) {
+  std::vector<std::uint32_t> inputs;
+  for (std::size_t i = 0; i < n; ++i) {
+    inputs.push_back(rgen());
+  }
+  std::seed_seq seq(inputs.begin(), inputs.end());
+
+  std::vector<std::uint32_t> seeds(n, 0);
+  seq.generate(seeds.begin(), seeds.end());
+
+  std::vector<std::minstd_rand> ret;
+  for (std::uint32_t seed : seeds) {
+    ret.emplace_back(seed);
+  }
+  return ret;
+}
+
+void place(const Problem &pb, std::vector<Mapping> &mappings, const SolverOptions &options, std::minstd_rand &rgen) {
+  // Initialize the vector to access elements in parallel
+  std::size_t range_begin = mappings.size();
+  std::size_t range_end   = options.n_starts;
+  mappings.resize(range_end);
+
   // Reuse the same object (rather than special-purpose constructor)
   IncBipart reused(pb);
-  // Only a fixed number of times: placement may actually be difficult
-  for (std::size_t i = mappings.size(); i < n_starts; ++i) {
+
+  auto rgens = seed_multiple(rgen, options.n_starts);
+  #pragma omp parallel for num_threads(options.n_threads) schedule(dynamic, 1)
+  for (std::size_t i = range_begin; i < range_end; ++i) {
     IncBipart inc = reused;
-    place(inc, rgen);
+    place(inc, rgens[i]);
+    // Only a fixed number of times: placement may actually be difficult and fail
     if (!inc.legal()) continue;
-    mappings.push_back(inc.mapping());
+    mappings[i] = inc.mapping();
   }
 }
 
-void optimize(const Problem &pb, std::vector<Mapping> &mappings, std::minstd_rand &rgen) {
-  for (Mapping &m : mappings) {
+void optimize(const Problem &pb, std::vector<Mapping> &mappings, const SolverOptions &options, std::minstd_rand &rgen) {
+  auto rgens = seed_multiple(rgen, options.n_starts);
+  #pragma omp parallel for num_threads(options.n_threads) schedule(dynamic, 1)
+  for (std::size_t i = 0; i < mappings.size(); ++i) {
+    Mapping &m = mappings[i];
     IncBipart inc(pb, m);
-    optimize(inc, rgen);
+    optimize(inc, rgens[i]);
     m = inc.mapping();
   }
 }
 
-void coarsen_recurse(const Problem &pb, std::vector<Mapping> &mappings, std::minstd_rand &rgen);
-void optimize_recurse(const Problem &pb, std::vector<Mapping> &mappings, std::minstd_rand &rgen);
+void coarsen_recurse(const Problem &pb, std::vector<Mapping> &mappings, const SolverOptions &options, std::minstd_rand &rgen);
+void optimize_recurse(const Problem &pb, std::vector<Mapping> &mappings, const SolverOptions &options, std::minstd_rand &rgen);
 
 void sort_mappings(const Problem &pb, std::vector<Mapping> &mappings) {
   std::multimap<std::int64_t, Mapping> sorted_mappings;
@@ -268,17 +296,13 @@ void sort_mappings(const Problem &pb, std::vector<Mapping> &mappings) {
   }
 }
 
-void coarsen_recurse(const Problem &pb, std::vector<Mapping> &mappings, std::minstd_rand &rgen) {
+void coarsen_recurse(const Problem &pb, std::vector<Mapping> &mappings, const SolverOptions &options, std::minstd_rand &rgen) {
   std::size_t target_nnodes = pb.hypergraph.nNodes() * 0.5;
   if (target_nnodes < 20) return;
 
   // FIXME: Keep left out mappings and insert them back?
   sort_mappings(pb, mappings);
   Coarsening coarsening = select_for_coarsening(mappings, target_nnodes);
-
-  if (coarsening.nNodesOut() < 10 || coarsening.nNodesOut() >= 0.95 * pb.hypergraph.nNodes()) {
-    return;
-  }
 
   Problem c_pb = coarsening(pb);
   std::vector<Mapping> c_mappings;
@@ -289,7 +313,7 @@ void coarsen_recurse(const Problem &pb, std::vector<Mapping> &mappings, std::min
     c_mappings.push_back(c_m);
   }
 
-  optimize_recurse(c_pb, c_mappings, rgen);
+  optimize_recurse(c_pb, c_mappings, options, rgen);
   mappings.clear();
   for (const Mapping &c_m : c_mappings) {
     auto m = coarsening.reverse(c_m);
@@ -298,10 +322,10 @@ void coarsen_recurse(const Problem &pb, std::vector<Mapping> &mappings, std::min
   }
 }
 
-void optimize_recurse(const Problem &pb, std::vector<Mapping> &mappings, std::minstd_rand &rgen) {
-  optimize(pb, mappings, rgen);
-  coarsen_recurse(pb, mappings, rgen);
-  optimize(pb, mappings, rgen);
+void optimize_recurse(const Problem &pb, std::vector<Mapping> &mappings, const SolverOptions &options, std::minstd_rand &rgen) {
+  optimize(pb, mappings, options, rgen);
+  coarsen_recurse(pb, mappings, options, rgen);
+  optimize(pb, mappings, options, rgen);
 }
 
 std::vector<Mapping> solve(const Problem &pb, const SolverOptions &options) {
@@ -310,9 +334,11 @@ std::vector<Mapping> solve(const Problem &pb, const SolverOptions &options) {
   std::vector<Mapping> mappings;
 
   for (std::size_t i = 0; i < options.n_cycles; ++i) {
-    place(pb, mappings, options.n_starts, rgen);
-    optimize_recurse(pb, mappings, rgen);
+    place(pb, mappings, options, rgen);
+    optimize(pb, mappings, options, rgen);
+    coarsen_recurse(pb, mappings, options, rgen);
   }
+  optimize(pb, mappings, options, rgen);
 
   sort_mappings(pb, mappings);
   return mappings;

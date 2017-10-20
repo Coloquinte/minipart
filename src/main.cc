@@ -34,6 +34,9 @@ po::options_description getOptions() {
   desc.add_options()("v-cycles", po::value<std::size_t>()->default_value(2),
       "number of coarsening-uncoarsening cycles");
 
+  desc.add_options()("threads,j", po::value<std::size_t>()->default_value(2),
+      "number of concurrent threads");
+
   desc.add_options()("seed", po::value<std::size_t>()->default_value(0),
       "random generator seed");
 
@@ -138,9 +141,10 @@ int main(int argc, char **argv) {
   setupCapacities(vm, pb);
 
   SolverOptions opt;
-  opt.n_starts = vm["starts"].as<std::size_t>();
-  opt.n_cycles = vm["v-cycles"].as<std::size_t>();
-  opt.seed = vm["seed"].as<std::size_t>();
+  opt.n_starts  = vm["starts"].as<std::size_t>();
+  opt.n_cycles  = vm["v-cycles"].as<std::size_t>();
+  opt.n_threads = vm["threads"].as<std::size_t>();
+  opt.seed      = vm["seed"].as<std::size_t>();
 
   reportInputs(vm, pb);
 

@@ -56,11 +56,11 @@ class IncBipart {
   Matrix<Resource> initRemaining() const;
 
  private:
-  Hypergraph h_;
+  const Hypergraph &h_;
   Mapping mapping_;
 
-  Matrix<Resource> demands_;
-  Matrix<Resource> capacities_;
+  const Matrix<Resource> &demands_;
+  const Matrix<Resource> &capacities_;
   Matrix<Resource> remaining_;
 
   std::vector<CounterPair> edgeState_;
