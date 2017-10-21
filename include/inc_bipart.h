@@ -20,6 +20,7 @@ class IncBipart {
   std::size_t nNodes() const { return h_.nNodes(); }
   std::size_t nEdges() const { return h_.nEdges(); }
   std::size_t nResources() const { return capacities_.size2(); }
+  std::size_t nMoves() const { return nMoves_; }
 
   Range<Node> nodes() const { return h_.nodes(); }
   Range<Edge> edges() const { return h_.edges(); }
@@ -43,13 +44,14 @@ class IncBipart {
   template <typename F>
   bool tryMove(Node n, const F &onGainIncrease);
 
-  bool cut(Edge e) const { return edgeState_[e.id][0] != 0 && edgeState_[e.id][1] != 0; }
+  bool cut(Edge e) const;
   bool overflow(bool partition) const;
 
   const Hypergraph &hypergraph() const { return h_; }
   void checkConsistency() const;
 
  private:
+  void init();
   std::vector<CounterPair> initState() const;
   Weight initCost() const;
   std::vector<Weight> initGains() const;
@@ -66,6 +68,9 @@ class IncBipart {
   std::vector<CounterPair> edgeState_;
   std::vector<Weight> gains_;
   Weight cost_;
+
+  // Statistics
+  std::size_t nMoves_;
 };
 
 IncBipart::IncBipart(const Problem &pb)
@@ -73,10 +78,7 @@ IncBipart::IncBipart(const Problem &pb)
 , mapping_(pb.hypergraph.nNodes())
 , demands_ (pb.demands)
 , capacities_ (pb.capacities) {
-  edgeState_ = initState();
-  cost_ = initCost();
-  gains_ = initGains();
-  remaining_ = initRemaining();
+  init();
 }
 
 IncBipart::IncBipart(const Problem &pb, const Mapping &m)
@@ -84,10 +86,15 @@ IncBipart::IncBipart(const Problem &pb, const Mapping &m)
 , mapping_(m)
 , demands_ (pb.demands)
 , capacities_ (pb.capacities) {
+  init();
+}
+
+void IncBipart::init() {
   edgeState_ = initState();
   cost_ = initCost();
   gains_ = initGains();
   remaining_ = initRemaining();
+  nMoves_ = 0;
 }
 
 std::vector<typename IncBipart::CounterPair> IncBipart::initState() const {
@@ -108,6 +115,11 @@ bool IncBipart::legal() const {
     if (overflow(i)) return false;
   }
   return true;
+}
+
+bool IncBipart::cut(Edge e) const {
+  return edgeState_[e.id][0] != 0
+      && edgeState_[e.id][1] != 0;
 }
 
 bool IncBipart::overflow(bool i) const {
@@ -168,6 +180,7 @@ void IncBipart::move(Node n) {
 
 template <typename F>
 void IncBipart::move(Node n, const F &onGainIncrease) {
+  ++nMoves_;
   bool from = mapping(n);
   bool to = !from;
   this->cost_ -= gains_[n.id];
