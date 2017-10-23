@@ -7,6 +7,24 @@
 
 namespace minipart {
 
+bool trySwap(IncBipart &inc, Node n1, Node n2) {
+  if (n1 == n2) return false;
+  if (inc.mapping(n1) == inc.mapping(n2)) return false;
+  // gain(swap) <= gain(move1) + gain(move2); if non-positive, don't bother
+  if (inc.gain(n1) + inc.gain(n2) <= 0) return false;
+
+  // TODO: add legality check before trying the swap
+  std::int64_t cost = inc.cost();
+  inc.move(n1);
+  inc.move(n2);
+  if (inc.cost() > cost || !inc.legal()) {
+    inc.move(n1);
+    inc.move(n2);
+    return false;
+  }
+  return true;
+}
+
 void legalization_pass(IncBipart &inc, std::minstd_rand &rgen) {
   if (inc.legal()) return;
 
@@ -98,6 +116,146 @@ void non_negative_gain_pass(IncBipart &inc, std::minstd_rand &rgen, const int ma
     if (g == 0 && ++zero_gain_moves[n.id] > max_zero_gain_moves) continue;
     inc.tryMove(n, [&](Node o, int w) { q.push(o); });
   }
+}
+
+template <typename Queue>
+void dual_queue_pass(IncBipart &inc, std::minstd_rand &rgen, const int max_zero_gain_moves = 1) {
+  std::vector<Node> nodes (inc.nodes().begin(), inc.nodes().end());
+  std::shuffle(nodes.begin(), nodes.end(), rgen);
+
+  std::vector<Queue> q(2, Queue(inc));
+  for (Node n : nodes) {
+    q[inc.mapping(n)].push(n);
+  }
+  std::vector<int> zero_gain_moves(inc.nNodes(), 0);
+
+  bool current = false;
+  while (!q[0].empty() || !q[1].empty()) {
+    while (!q[current].empty()) {
+      Node n = q[current].pop();
+      Weight g = inc.gain(n);
+      if (g < 0) continue;
+      if (g == 0 && ++zero_gain_moves[n.id] > max_zero_gain_moves) continue;
+      if (inc.mapping(n) == current && inc.canMove(n)) {
+        inc.move(n, [&](Node o, int w) { q[current].push(o); });
+      }
+    }
+    current = !current;
+  }
+}
+
+template <typename Queue>
+class HybridPassFunctor {
+ public:
+  HybridPassFunctor(IncBipart &inc, std::minstd_rand &rgen, int max_moves_per_probe);
+  void run();
+
+ private:
+  bool empty();
+  bool attempt_move();
+  bool attempt_swap();
+  void drop();
+
+ private:
+  IncBipart &inc_;
+  std::minstd_rand &rgen_;
+  std::vector<int> zero_gain_moves_;
+  int max_zero_gain_moves_;
+  std::vector<Queue> q_;
+  bool current_;
+};
+
+template <typename Queue>
+HybridPassFunctor<Queue>::HybridPassFunctor(IncBipart &inc, std::minstd_rand &rgen, int max_zero_gain_moves)
+: inc_(inc)
+, rgen_(rgen)
+, max_zero_gain_moves_(max_zero_gain_moves) {
+  zero_gain_moves_.assign(inc.nNodes(), 0);
+  q_ = std::vector<Queue> (2, Queue(inc));
+  current_ = false;
+
+  std::vector<Node> nodes (inc.nodes().begin(), inc.nodes().end());
+  std::shuffle(nodes.begin(), nodes.end(), rgen);
+
+  for (Node n : nodes) {
+    q_[inc.mapping(n)].push(n);
+  }
+}
+
+template <typename Queue>
+bool HybridPassFunctor<Queue>::empty() {
+  return q_[0].empty() && q_[1].empty();
+}
+
+template <typename Queue>
+void HybridPassFunctor<Queue>::run() {
+  while (!empty()) {
+    bool move_success = attempt_move();
+    if (move_success) continue;
+
+    bool swap_success = attempt_swap();
+    if (swap_success) continue;
+
+    drop();
+  }
+}
+
+template <typename Queue>
+bool HybridPassFunctor<Queue>::attempt_move() {
+  bool success = false;
+  // Consume all moves on both queues
+  Queue &q = q_[current_];
+  while (!q.empty()) {
+    Node n = q.pop();
+    Weight g = inc_.gain(n);
+    if (g < 0) continue;
+    if (g == 0 && ++zero_gain_moves_[n.id] > max_zero_gain_moves_) continue;
+    if (inc_.mapping(n) == current_ && inc_.canMove(n)) {
+      inc_.move(n, [&](Node o, int w) { q.push(o); });
+      success = true;
+    }
+    else {
+      // Keep it for later
+      q.push(n);
+      break;
+    }
+  }
+  current_ = !current_;
+  return success;
+}
+
+template <typename Queue>
+bool HybridPassFunctor<Queue>::attempt_swap() {
+  if (!q_[0].empty() && !q_[1].empty()) {
+    Node n0 = q_[0].pop();
+    Node n1 = q_[1].pop();
+    bool success = trySwap(inc_, n0, n1);
+    if (!success) {
+      q_[0].push(n0);
+      q_[1].push(n1);
+    }
+  }
+  return false;
+}
+
+template <typename Queue>
+void HybridPassFunctor<Queue>::drop() {
+  // Drop an unmovable node from the queue
+  bool empty0 = q_[0].empty();
+  bool empty1 = q_[1].empty();
+  if (!empty0 && !empty1) {
+    std::bernoulli_distribution dist;
+    bool side = dist(rgen_);
+    q_[side].pop();
+  }
+  else if (!empty0) q_[0].pop();
+  else if (!empty1) q_[1].pop();
+}
+
+template <typename Queue>
+void hybrid_pass(IncBipart &inc, std::minstd_rand &rgen, int max_moves_per_probe=1) {
+  HybridPassFunctor<Queue> pass(inc, rgen, max_moves_per_probe);
+  pass.run();
 }
 
 template <typename Queue>
@@ -199,22 +357,6 @@ void edge_centric_pass(IncBipart &inc, std::minstd_rand &rgen) {
   edge_centric_pass(inc, edges);
 }
 
-void trySwap(IncBipart &inc, Node n1, Node n2) {
-  if (n1 == n2) return;
-  if (inc.mapping(n1) == inc.mapping(n2)) return;
-  // gain(swap) <= gain(move1) + gain(move2); if non-positive, don't bother
-  if (inc.gain(n1) + inc.gain(n2) <= 0) return;
-
-  // TODO: add legality check before trying the swap
-  std::int64_t cost = inc.cost();
-  inc.move(n1);
-  inc.move(n2);
-  if (inc.cost() > cost || !inc.legal()) {
-    inc.move(n1);
-    inc.move(n2);
-  }
-}
-
 std::vector<Node> select_biggest_nodes(const IncBipart &inc, std::size_t num) {
   std::vector<Node> ret(inc.nodes().begin(), inc.nodes().end());
   // Access the weight matrix for each resource and get the n biggest nodes
@@ -303,10 +445,9 @@ void place(IncBipart &inc, std::minstd_rand &rgen) {
 }
 
 void optimize(IncBipart &inc, std::minstd_rand &rgen) {
-  non_negative_gain_pass<PosQueue>(inc, rgen);
-  non_negative_gain_pass<PosQueue>(inc, rgen);
-  non_negative_gain_pass<PosQueue>(inc, rgen);
-  non_negative_gain_pass<PosQueue>(inc, rgen);
+  //dual_queue_pass<PosQueue>(inc, rgen);
+  hybrid_pass<PosQueue>(inc, rgen);
+  hybrid_pass<PosQueue>(inc, rgen);
   probing_pass<PosQueue>(inc, rgen, 5);
   edge_centric_pass(inc, rgen);
   swap_pass(inc, rgen);
