@@ -156,16 +156,20 @@ void move_all(IncBipart &inc, Edge e, const std::vector<char> &dest) {
 }
 
 void edge_centric_pass(IncBipart &inc, const std::vector<Edge> &edges) {
+  std::vector<char> initial;
   for (Edge e : edges) {
     // Try to move the entire edge in both directions
-    std::vector<char> initial;
     for (Node n : inc.nodes(e)) {
       initial.push_back(inc.mapping(n));
     }
     std::int64_t best_cost = inc.cost();
     int best_result = -1;
     for (int i = 0; i < 2; ++i) {
-      move_all(inc, e, std::vector<char>(inc.nodes(e).size(), i));
+      for (Node n : inc.nodes(e)) {
+        if (inc.mapping(n) != i) {
+          inc.move(n);
+        }
+      }
       if (inc.legal() && inc.cost() < best_cost) {
         best_cost = inc.cost();
         best_result = i;
@@ -176,15 +180,20 @@ void edge_centric_pass(IncBipart &inc, const std::vector<Edge> &edges) {
       move_all(inc, e, initial);
     }
     else if (best_result == 0) {
-      move_all(inc, e, std::vector<char>(inc.nodes(e).size(), 0));
+      for (Node n : inc.nodes(e)) {
+        inc.move(n);
+      }
     }
+    initial.clear();
   }
 }
 
 void edge_centric_pass(IncBipart &inc, std::minstd_rand &rgen) {
   std::vector<Edge> edges;
   for (auto e : inc.edges()) {
-    if (inc.cut(e)) edges.push_back(e);
+    if (inc.nodes(e).size() <= 4) continue; // Mostly taken care of by other algorithms
+    if (!inc.cut(e)) continue; // Only edges on the frontier
+    edges.push_back(e);
   }
   std::shuffle(edges.begin(), edges.end(), rgen);
   edge_centric_pass(inc, edges);
@@ -193,8 +202,10 @@ void edge_centric_pass(IncBipart &inc, std::minstd_rand &rgen) {
 void trySwap(IncBipart &inc, Node n1, Node n2) {
   if (n1 == n2) return;
   if (inc.mapping(n1) == inc.mapping(n2)) return;
+  // gain(swap) <= gain(move1) + gain(move2); if non-positive, don't bother
   if (inc.gain(n1) + inc.gain(n2) <= 0) return;
 
+  // TODO: add legality check before trying the swap
   std::int64_t cost = inc.cost();
   inc.move(n1);
   inc.move(n2);
@@ -204,9 +215,25 @@ void trySwap(IncBipart &inc, Node n1, Node n2) {
   }
 }
 
-void tryAllSwaps(IncBipart &inc, const std::vector<Node> &nodes) {
+std::vector<Node> select_biggest_nodes(const IncBipart &inc, std::size_t num) {
+  std::vector<Node> ret(inc.nodes().begin(), inc.nodes().end());
+  // Access the weight matrix for each resource and get the n biggest nodes
+  const Matrix<Resource> &demands = inc.demands();
+  assert (demands.size1() == inc.nNodes());
+  // TODO: handle multiple resources
+  std::sort (ret.begin(), ret.end(),
+      [&](Node a, Node b) {
+        return demands(a.id, 0) > demands(b.id, 0);
+      });
+  if (ret.size() > num) ret.resize(num);
+  return ret;
+}
+
+void swap_pass(IncBipart &inc, const std::vector<Node> &nodes) {
   for (Node n1 : nodes) {
+    // At least one of the nodes ought to have positive gain
     if (inc.gain(n1) <= 0) continue;
+    // No point swapping if we can move
     if (inc.canMove(n1)) {
       inc.move(n1);
       continue;
@@ -217,19 +244,58 @@ void tryAllSwaps(IncBipart &inc, const std::vector<Node> &nodes) {
   }
 }
 
-void swap_pass(IncBipart &inc, std::minstd_rand &rgen) {
-  // TODO: strict runtime limit to avoid quadratic blowup
-
-  bool positive_gain_found = false;
-  for (Node n : inc.nodes()) {
-    positive_gain_found |= (inc.gain(n) > 0);
-  }
-  if (!positive_gain_found) return;
-
-  std::vector<Node> nodes(inc.nodes().begin(), inc.nodes().end());
+void swap_pass(IncBipart &inc, std::minstd_rand &rgen, std::size_t num = 100) {
+  std::vector<Node> nodes = select_biggest_nodes(inc, num);
   std::shuffle(nodes.begin(), nodes.end(), rgen);
 
-  tryAllSwaps(inc, nodes);
+  swap_pass(inc, nodes);
+}
+
+void exhaustive_pass(IncBipart &inc, const std::vector<Node> &nodes) {
+  assert (nodes.size() < 64);
+  std::uint64_t cnt = 1 << nodes.size();
+
+  // Keep the flips since the last best result
+  std::vector<char> history(nodes.size(), 0);
+  std::int64_t best_result = inc.cost();
+
+  std::uint64_t gray = 0;
+  for (std::uint64_t i = 1; i < cnt; ++i) {
+    // Convert to a Gray counter to perform only one move per iteration
+    std::uint64_t cur_gray = i ^ (i >> 1);
+    std::uint64_t diff = cur_gray ^ gray;
+    assert ( (diff & (diff-1)) == 0); // Only one bit flipped
+    gray = cur_gray;
+
+    // Find first bit set; compiler, please optimize this i.e. count leading zeros
+    std::size_t flipped = 0;
+    for (std::uint64_t s = diff >> 1; s != 0; s >>= 1) {
+      ++flipped;
+    }
+
+    // Make the change
+    Node n = nodes[flipped];
+    inc.move(n);
+    history[flipped] ^= 1;
+
+    // Reset the history
+    if (inc.legal() && inc.cost() < best_result) {
+      history.assign(nodes.size(), (char) 0);
+      best_result = inc.cost();
+    }
+  }
+  for (std::size_t i = 0; i < nodes.size(); ++i) {
+    if (history[i]) {
+      inc.move(nodes[i]);
+    }
+  }
+}
+
+void exhaustive_pass(IncBipart &inc, std::minstd_rand &rgen) {
+  std::vector<Node> nodes = select_biggest_nodes(inc, 10);
+  std::shuffle(nodes.begin(), nodes.end(), rgen);
+
+  exhaustive_pass(inc, nodes);
 }
 
 void place(IncBipart &inc, std::minstd_rand &rgen) {
@@ -239,9 +305,12 @@ void place(IncBipart &inc, std::minstd_rand &rgen) {
 void optimize(IncBipart &inc, std::minstd_rand &rgen) {
   non_negative_gain_pass<PosQueue>(inc, rgen);
   non_negative_gain_pass<PosQueue>(inc, rgen);
+  non_negative_gain_pass<PosQueue>(inc, rgen);
+  non_negative_gain_pass<PosQueue>(inc, rgen);
   probing_pass<PosQueue>(inc, rgen, 5);
-  //edge_centric_pass(inc, rgen);
+  edge_centric_pass(inc, rgen);
   swap_pass(inc, rgen);
+  //exhaustive_pass(inc, rgen);
 }
 
 void sort_mappings(const Problem &pb, std::vector<Mapping> &mappings) {

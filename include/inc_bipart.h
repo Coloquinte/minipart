@@ -20,7 +20,6 @@ class IncBipart {
   std::size_t nNodes() const { return h_.nNodes(); }
   std::size_t nEdges() const { return h_.nEdges(); }
   std::size_t nResources() const { return capacities_.size2(); }
-  std::size_t nMoves() const { return nMoves_; }
 
   Range<Node> nodes() const { return h_.nodes(); }
   Range<Edge> edges() const { return h_.edges(); }
@@ -33,6 +32,7 @@ class IncBipart {
 
   Weight gain(Node n) const { return gains_[n.id]; }
   bool mapping(Node n) const { return mapping_[n].id; }
+  std::size_t moves() const { return moves_; } // Stats
 
   bool canMove(Node n) const;
 
@@ -48,6 +48,9 @@ class IncBipart {
   bool overflow(bool partition) const;
 
   const Hypergraph &hypergraph() const { return h_; }
+  const Matrix<Resource> &demands() const { return demands_; }
+  const Matrix<Resource> &capacities() const { return capacities_; }
+
   void checkConsistency() const;
 
  private:
@@ -70,7 +73,7 @@ class IncBipart {
   Weight cost_;
 
   // Statistics
-  std::size_t nMoves_;
+  std::size_t moves_;
 };
 
 IncBipart::IncBipart(const Problem &pb)
@@ -94,7 +97,7 @@ void IncBipart::init() {
   cost_ = initCost();
   gains_ = initGains();
   remaining_ = initRemaining();
-  nMoves_ = 0;
+  moves_ = 0;
 }
 
 std::vector<typename IncBipart::CounterPair> IncBipart::initState() const {
@@ -180,7 +183,7 @@ void IncBipart::move(Node n) {
 
 template <typename F>
 void IncBipart::move(Node n, const F &onGainIncrease) {
-  ++nMoves_;
+  ++moves_;
   bool from = mapping(n);
   bool to = !from;
   this->cost_ -= gains_[n.id];
@@ -240,7 +243,6 @@ bool IncBipart::tryMove(Node n, const F &onGainIncrease) {
   }
   return false;
 }
-
 
 void IncBipart::checkConsistency() const {
   assert (mapping_.nNodes() == h_.nNodes());
