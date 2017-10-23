@@ -5,6 +5,7 @@
 #include "solver.h"
 
 #include <array>
+#include <random>
 
 namespace minipart {
 
@@ -76,7 +77,11 @@ class IncBipart {
   std::size_t moves_;
 };
 
-IncBipart::IncBipart(const Problem &pb)
+// Basic high-level local search
+void place(IncBipart &inc, std::minstd_rand &rgen);
+void optimize(IncBipart &inc, std::minstd_rand &rgen);
+
+inline IncBipart::IncBipart(const Problem &pb)
 : h_(pb.hypergraph)
 , mapping_(pb.hypergraph.nNodes())
 , demands_ (pb.demands)
@@ -84,7 +89,7 @@ IncBipart::IncBipart(const Problem &pb)
   init();
 }
 
-IncBipart::IncBipart(const Problem &pb, const Mapping &m)
+inline IncBipart::IncBipart(const Problem &pb, const Mapping &m)
 : h_(pb.hypergraph)
 , mapping_(m)
 , demands_ (pb.demands)
@@ -92,7 +97,7 @@ IncBipart::IncBipart(const Problem &pb, const Mapping &m)
   init();
 }
 
-void IncBipart::init() {
+inline void IncBipart::init() {
   edgeState_ = initState();
   cost_ = initCost();
   gains_ = initGains();
@@ -100,7 +105,7 @@ void IncBipart::init() {
   moves_ = 0;
 }
 
-std::vector<typename IncBipart::CounterPair> IncBipart::initState() const {
+inline std::vector<typename IncBipart::CounterPair> IncBipart::initState() const {
   std::vector<CounterPair> ret(h_.nEdges(), CounterPair({0, 0}));
   for (auto e : h_.edges()) {
     Index count = 0;
@@ -113,26 +118,26 @@ std::vector<typename IncBipart::CounterPair> IncBipart::initState() const {
   return ret;
 }
 
-bool IncBipart::legal() const {
+inline bool IncBipart::legal() const {
   for (std::size_t i = 0; i < 2; ++i) {
     if (overflow(i)) return false;
   }
   return true;
 }
 
-bool IncBipart::cut(Edge e) const {
+inline bool IncBipart::cut(Edge e) const {
   return edgeState_[e.id][0] != 0
       && edgeState_[e.id][1] != 0;
 }
 
-bool IncBipart::overflow(bool i) const {
+inline bool IncBipart::overflow(bool i) const {
   for (std::size_t j = 0; j < nResources(); ++j) {
     if (remaining_(i, j) < 0) return true;
   }
   return false;
 }
 
-bool IncBipart::canMove(Node n) const {
+inline bool IncBipart::canMove(Node n) const {
   bool to = !mapping(n);
   for (std::size_t j = 0; j < nResources(); ++j) {
     if (remaining_(to, j) < demands_(n.id, j)) return false;
@@ -140,7 +145,7 @@ bool IncBipart::canMove(Node n) const {
   return true;
 }
 
-Weight IncBipart::initCost() const {
+inline Weight IncBipart::initCost() const {
   Weight ret = 0;
   for (auto e : h_.edges()) {
     CounterPair cnt = edgeState_[e.id];
@@ -150,7 +155,7 @@ Weight IncBipart::initCost() const {
   return ret;
 }
 
-std::vector<Weight> IncBipart::initGains() const {
+inline std::vector<Weight> IncBipart::initGains() const {
   std::vector<Weight> ret(h_.nNodes(), 0);
   for (auto n : h_.nodes()) {
     bool from = mapping(n);
@@ -166,7 +171,7 @@ std::vector<Weight> IncBipart::initGains() const {
   return ret;
 }
 
-Matrix<Resource> IncBipart::initRemaining() const {
+inline Matrix<Resource> IncBipart::initRemaining() const {
   Matrix<Resource> ret = capacities_;
   for (auto n : h_.nodes()) {
     bool part = mapping(n);
@@ -177,12 +182,12 @@ Matrix<Resource> IncBipart::initRemaining() const {
   return ret;
 }
 
-void IncBipart::move(Node n) {
+inline void IncBipart::move(Node n) {
   move(n, [](Node n, Weight w) {});
 }
 
 template <typename F>
-void IncBipart::move(Node n, const F &onGainIncrease) {
+inline void IncBipart::move(Node n, const F &onGainIncrease) {
   ++moves_;
   bool from = mapping(n);
   bool to = !from;
@@ -231,12 +236,12 @@ void IncBipart::move(Node n, const F &onGainIncrease) {
   this->mapping_[n] = Part(to);
 }
 
-bool IncBipart::tryMove(Node n) {
+inline bool IncBipart::tryMove(Node n) {
   return tryMove(n, [](Node n, Weight w) {});
 }
 
 template<typename F>
-bool IncBipart::tryMove(Node n, const F &onGainIncrease) {
+inline bool IncBipart::tryMove(Node n, const F &onGainIncrease) {
   if (canMove(n)) {
     move(n, onGainIncrease);
     return true;
@@ -244,7 +249,7 @@ bool IncBipart::tryMove(Node n, const F &onGainIncrease) {
   return false;
 }
 
-void IncBipart::checkConsistency() const {
+inline void IncBipart::checkConsistency() const {
   assert (mapping_.nNodes() == h_.nNodes());
   assert (demands_.size1() == nNodes());
   assert (capacities_.size1() == 2);
