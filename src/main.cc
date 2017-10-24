@@ -75,10 +75,13 @@ po::options_description getOptions() {
       ->notifier(check_threads),
       "number of concurrent threads");
 
-  desc.add_options()("seed", po::value<std::size_t>()->default_value(1),
+  desc.add_options()("seed", po::value<std::size_t>()->default_value(0),
       "random generator seed");
 
   desc.add_options()("stats", "print problem statistics");
+
+  desc.add_options()("verbose,v", po::value<std::size_t>()->default_value(1),
+      "verbosity level");
 
   return desc;
 }
@@ -88,6 +91,7 @@ po::options_description getHiddenOptions() {
 
   desc.add_options()("dump-hmetis", po::value<std::string>(),
       "dump a .hgr file for debug purposes");
+
 
   return desc;
 }
@@ -118,6 +122,7 @@ po::variables_map parseArguments(int argc, char **argv) {
   assert(vm.count("parts"));
   assert(vm.count("starts"));
   assert(vm.count("seed"));
+  assert(vm.count("verbose"));
   assert(vm.count("v-cycles"));
 
   if (vm.count("help")) {
@@ -206,6 +211,7 @@ int main(int argc, char **argv) {
   opt.n_cycles  = vm["v-cycles"].as<std::size_t>();
   opt.n_threads = vm["threads"].as<std::size_t>();
   opt.seed      = vm["seed"].as<std::size_t>();
+  opt.verbosity = vm["verbose"].as<std::size_t>();
 
   reportInputs(vm, pb);
 

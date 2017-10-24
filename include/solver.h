@@ -19,6 +19,7 @@ struct SolverOptions {
   std::size_t n_cycles;
   std::size_t n_threads;
   std::size_t seed;
+  std::size_t verbosity;
 };
 
 // Main solving function

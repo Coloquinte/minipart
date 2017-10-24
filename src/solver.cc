@@ -3,14 +3,15 @@
 #include "coarsener.h"
 #include "inc_bipart.h"
 
+#include <iostream>
+
 namespace minipart {
 
 class BipartSolver {
  public:
-  BipartSolver(Problem pb, SolverOptions options, std::shared_ptr<std::vector<std::minstd_rand> > rgens, std::vector<Mapping> pool);
+  BipartSolver(Problem pb, SolverOptions options, std::shared_ptr<std::vector<std::minstd_rand> > rgens, std::vector<Mapping> pool, std::size_t level);
   BipartSolver(Problem pb, SolverOptions options);
 
-  void init();
   void run();
 
   const std::vector<Mapping> &mappings() const { return solution_pool_; }
@@ -19,12 +20,15 @@ class BipartSolver {
   void place();
   void optimize();
   void coarsen_recurse();
+  void report();
 
  private:
   // Problem to solve
   Problem pb_;
   // Options
   SolverOptions options_;
+  // Coarsening level
+  std::size_t level_;
   // Multiple random generators for parallel algorithms
   // Shared between solvers: don't call them in parallel
   // TODO: do not share state: use Xoroshiro128+ or PCG to have
@@ -35,7 +39,7 @@ class BipartSolver {
 };
 
 BipartSolver::BipartSolver(Problem pb, SolverOptions options)
-: BipartSolver(pb, options, nullptr, std::vector<Mapping>()) {
+: BipartSolver(pb, options, nullptr, std::vector<Mapping>(), 0) {
   std::seed_seq seq = {options.seed};
   std::vector<std::uint32_t> seeds(options.n_starts);
   seq.generate(seeds.begin(), seeds.end());
@@ -45,21 +49,38 @@ BipartSolver::BipartSolver(Problem pb, SolverOptions options)
   }
 }
 
-BipartSolver::BipartSolver(Problem pb, SolverOptions options, std::shared_ptr<std::vector<std::minstd_rand> > rgens, std::vector<Mapping> pool)
+BipartSolver::BipartSolver(Problem pb, SolverOptions options, std::shared_ptr<std::vector<std::minstd_rand> > rgens, std::vector<Mapping> pool, std::size_t level)
 : pb_(pb)
 , options_(options)
+, level_(level)
 , rgens_(rgens)
-, solution_pool_(pool){
-}
-
-void BipartSolver::init() {
-  place();
+, solution_pool_(pool) {
 }
 
 void BipartSolver::run() {
+  place();
+  report();
   optimize();
   coarsen_recurse();
   optimize();
+}
+
+void BipartSolver::report() {
+  if (options_.verbosity <= 1) return;
+
+  for (std::size_t i = 0; i < level_; ++i) std::cout << "  ";
+  std::cout << pb_.hypergraph.nNodes() << " nodes, ";
+  std::cout << solution_pool_.size() << " solutions, ";
+  std::int64_t min_cost = std::numeric_limits<std::int64_t>::max();
+  double avg_cost = 0.0;
+  for (const Mapping &m : solution_pool_) {
+    std::int64_t cost = computeBipartCost(pb_.hypergraph, m);
+    min_cost = std::min(min_cost, cost);
+    avg_cost += cost;
+  }
+  avg_cost /= solution_pool_.size();
+  std::cout << avg_cost << " average cost, ";
+  std::cout << min_cost << " minimum cost" << std::endl;
 }
 
 void BipartSolver::place() {
@@ -76,9 +97,17 @@ void BipartSolver::place() {
     IncBipart inc = reused;
     minipart::place(inc, rgens_->at(i));
     // Only a fixed number of times: placement may actually be difficult and fail
-    if (!inc.legal()) continue;
-    solution_pool_[i] = inc.mapping();
+    if (inc.legal()) {
+      solution_pool_[i] = inc.mapping();
+    }
   }
+
+  // Erase positions that haven't been filled
+  solution_pool_.erase(
+    std::remove_if(solution_pool_.begin(), solution_pool_.end()
+      , [](const Mapping &m) { return m.nNodes() == 0; }),
+      solution_pool_.end()
+  );
 }
 
 void BipartSolver::optimize() {
@@ -100,17 +129,18 @@ void BipartSolver::coarsen_recurse() {
 
   for (const std::pair<Coarsening, std::vector<Mapping> > &coarsening_pool : next_pools) {
     const Coarsening &coarsening = coarsening_pool.first;
+    const std::vector<Mapping> &selected = coarsening_pool.second;
     // Apply the coarsening
     Problem c_pb = coarsening(pb_);
     std::vector<Mapping> c_mappings;
-    for (const Mapping &m : coarsening_pool.second) {
+    for (const Mapping &m : selected) {
       auto c_m = coarsening(m);
       assert (computeBipartCost(pb_.hypergraph, m) == computeBipartCost(c_pb.hypergraph, c_m));
       c_mappings.push_back(c_m);
     }
 
     // Call recursively
-    BipartSolver coarsened(c_pb, options_, rgens_, c_mappings);
+    BipartSolver coarsened(c_pb, options_, rgens_, c_mappings, level_+1);
     coarsened.run();
 
     // Read results back
@@ -125,7 +155,6 @@ void BipartSolver::coarsen_recurse() {
 std::vector<Mapping> solve(const Problem &pb, const SolverOptions &options) {
   BipartSolver s(pb, options);
   for (std::size_t i = 0; i < options.n_cycles; ++i) {
-    s.init();
     s.run();
   }
   return s.mappings();
