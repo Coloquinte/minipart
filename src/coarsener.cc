@@ -97,7 +97,7 @@ Coarsening infer_coarsening(const std::vector<Mapping> &mappings) {
   return ret;
 }
 
-Coarsening select_for_coarsening(std::vector<Mapping> &mappings, std::size_t target_nnodes) {
+std::pair<Coarsening, std::vector<Mapping> > select_for_coarsening(const std::vector<Mapping> &mappings, std::size_t target_nnodes) {
   // Select only the first few mappings to get a coarse solution
   //   i.e. the largest solution that has that many nodes or fewer
   // Assume the mapping are already sorted in a nice order - best first for example
@@ -110,26 +110,43 @@ Coarsening select_for_coarsening(std::vector<Mapping> &mappings, std::size_t tar
     ++min_num_mappings;
     min_num_nodes *= 2;
   }
-  if (min_num_mappings >= mappings.size()) return infer_coarsening(mappings);
+  if (min_num_mappings >= mappings.size()) return std::make_pair(infer_coarsening(mappings), mappings);
 
   // Now select just enough to achieve the target
-  std::vector<Mapping> left_out;
-  while (mappings.size() > min_num_mappings) {
-    left_out.emplace_back(mappings.back());
-    mappings.pop_back();
-  }
+  std::vector<Mapping> selected(mappings.begin(), mappings.begin() + min_num_mappings);
+  Coarsening ret = infer_coarsening(selected);
 
-  Coarsening ret = infer_coarsening(mappings);
-  while (!left_out.empty()) {
-    mappings.emplace_back(left_out.back());
-    Coarsening candidate = infer_coarsening(mappings);
+  for (std::size_t i = min_num_mappings; i < mappings.size(); ++i) {
+    selected.emplace_back(mappings[i]);
+    Coarsening candidate = infer_coarsening(selected);
     if (candidate.nNodesOut() > target_nnodes) {
-      mappings.pop_back();
+      selected.pop_back();
       break;
     }
     std::swap(candidate, ret);
-    left_out.pop_back();
   }
+  return std::make_pair(ret, selected);
+}
+
+void sort_pool(const Problem &pb, std::vector<Mapping> &pool) {
+  typedef std::pair<std::int64_t, Mapping> CM;
+  std::vector<CM> cost_to_mapping;
+  for (const Mapping & m : pool) {
+    cost_to_mapping.emplace_back(computeBipartCost(pb.hypergraph, m), m);
+  }
+  std::sort (cost_to_mapping.begin(), cost_to_mapping.end(), [](const CM &a, const CM &b) { return a.first < b.first; });
+  pool.clear();
+  for (CM &c : cost_to_mapping) {
+    pool.emplace_back(c.second);
+  }
+}
+
+std::vector<std::pair<Coarsening, std::vector<Mapping> > > select_pool_coarsenings(const Problem &pb, const std::vector<Mapping> &pool, std::size_t target_n_nodes, std::minstd_rand &rgen) {
+  std::vector<std::pair<Coarsening, std::vector<Mapping> > > ret;
+
+  std::vector<Mapping> selected = pool;
+  sort_pool(pb, selected);
+  ret.push_back(select_for_coarsening(selected, target_n_nodes));
   return ret;
 }
 

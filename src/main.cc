@@ -178,6 +178,24 @@ void writeResult(const po::variables_map &vm, const std::vector<Mapping> &mappin
   }
 }
 
+void check_solutions(const Problem &pb, std::vector<Mapping> &pool) {
+  // TODO: add checkers
+}
+
+void sort_solutions(const Problem &pb, std::vector<Mapping> &pool) {
+  typedef std::pair<std::int64_t, Mapping> CM;
+  std::vector<CM> cost_to_mapping;
+  for (const Mapping & m : pool) {
+    // TODO: get rid of bipart-specific stuff
+    cost_to_mapping.emplace_back(computeBipartCost(pb.hypergraph, m), m);
+  }
+  std::sort (cost_to_mapping.begin(), cost_to_mapping.end(), [](const CM &a, const CM &b) { return a.first < b.first; });
+  pool.clear();
+  for (CM &c : cost_to_mapping) {
+    pool.emplace_back(c.second);
+  }
+}
+
 int main(int argc, char **argv) {
   po::variables_map vm = parseArguments(argc, argv);
   Problem pb = parseGraph(vm);
@@ -192,6 +210,10 @@ int main(int argc, char **argv) {
   reportInputs(vm, pb);
 
   std::vector<Mapping> mappings = solve(pb, opt);
+
+  check_solutions(pb, mappings);
+  sort_solutions(pb, mappings);
+
   reportResults(pb, mappings, std::cout);
 
   writeResult(vm, mappings);

@@ -30,8 +30,8 @@ class Coarsening {
   std::size_t n_out_;
 };
 
-Coarsening infer_coarsening(const std::vector<Mapping> &mappings);
-Coarsening select_for_coarsening(std::vector<Mapping> &mappings, std::size_t target_nnodes);
+// Create new pool levels from an existing pool
+std::vector<std::pair<Coarsening, std::vector<Mapping> > > select_pool_coarsenings(const Problem &pb, const std::vector<Mapping> &pool, std::size_t target_n_nodes, std::minstd_rand &rgen);
 
 }  // End namespace minipart
 

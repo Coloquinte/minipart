@@ -3,21 +3,7 @@
 #include "coarsener.h"
 #include "inc_bipart.h"
 
-#include <map>
-
 namespace minipart {
-
-void sort_mappings(const Problem &pb, std::vector<Mapping> &mappings) {
-  std::multimap<std::int64_t, Mapping> sorted_mappings;
-  for (Mapping &m : mappings) {
-    std::int64_t cost = computeBipartCost(pb.hypergraph, m);
-    sorted_mappings.emplace(cost, std::move(m));
-  }
-  mappings.clear();
-  for (auto & p : sorted_mappings) {
-    mappings.emplace_back(std::move(p.second));
-  }
-}
 
 class BipartSolver {
  public:
@@ -106,33 +92,33 @@ void BipartSolver::optimize() {
 }
 
 void BipartSolver::coarsen_recurse() {
-  std::size_t target_nnodes = pb_.hypergraph.nNodes() * 0.5;
-  if (target_nnodes < 20) return;
+  std::size_t target_n_nodes = pb_.hypergraph.nNodes() * 0.5;
+  if (target_n_nodes < 20) return;
 
-  // Chose a coarsening
-  // FIXME: Keep left out mappings and insert them back?
-  sort_mappings(pb_, solution_pool_);
-  Coarsening coarsening = select_for_coarsening(solution_pool_, target_nnodes);
-
-  // Apply the coarsening
-  Problem c_pb = coarsening(pb_);
-  std::vector<Mapping> c_mappings;
-  for (const Mapping &m : solution_pool_) {
-    auto c_m = coarsening(m);
-    assert (computeBipartCost(pb_.hypergraph, m) == computeBipartCost(c_pb.hypergraph, c_m));
-    c_mappings.push_back(c_m);
-  }
-
-  // Call recursively
-  BipartSolver coarsened(c_pb, options_, rgens_, c_mappings);
-  coarsened.run();
-
-  // Read results back
+  auto next_pools = select_pool_coarsenings(pb_, solution_pool_, target_n_nodes, rgens_->at(0));
   solution_pool_.clear();
-  for (const Mapping &c_m : coarsened.mappings()) {
-    auto m = coarsening.reverse(c_m);
-    assert (computeBipartCost(pb_.hypergraph, m) == computeBipartCost(c_pb.hypergraph, c_m));
-    solution_pool_.push_back(m);
+
+  for (const std::pair<Coarsening, std::vector<Mapping> > &coarsening_pool : next_pools) {
+    const Coarsening &coarsening = coarsening_pool.first;
+    // Apply the coarsening
+    Problem c_pb = coarsening(pb_);
+    std::vector<Mapping> c_mappings;
+    for (const Mapping &m : coarsening_pool.second) {
+      auto c_m = coarsening(m);
+      assert (computeBipartCost(pb_.hypergraph, m) == computeBipartCost(c_pb.hypergraph, c_m));
+      c_mappings.push_back(c_m);
+    }
+
+    // Call recursively
+    BipartSolver coarsened(c_pb, options_, rgens_, c_mappings);
+    coarsened.run();
+
+    // Read results back
+    for (const Mapping &c_m : coarsened.mappings()) {
+      auto m = coarsening.reverse(c_m);
+      assert (computeBipartCost(pb_.hypergraph, m) == computeBipartCost(c_pb.hypergraph, c_m));
+      solution_pool_.push_back(m);
+    }
   }
 }
 
@@ -142,9 +128,7 @@ std::vector<Mapping> solve(const Problem &pb, const SolverOptions &options) {
     s.init();
     s.run();
   }
-  auto ret = s.mappings();
-  sort_mappings(pb, ret);
-  return ret;
+  return s.mappings();
 }
 
 } // End namespace minipart

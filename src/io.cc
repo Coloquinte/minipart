@@ -291,6 +291,7 @@ void reportResults(const Problem &pb, const std::vector<Mapping> &mappings, std:
 
   std::vector<int> costs;
   for (const Mapping &m : mappings) {
+    // TODO: get rid of bipart-specific stuff
     costs.push_back(computeBipartCost(pb.hypergraph, m));
   }
 
