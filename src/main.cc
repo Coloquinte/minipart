@@ -192,7 +192,7 @@ void sort_solutions(const Problem &pb, std::vector<Mapping> &pool) {
   std::vector<CM> cost_to_mapping;
   for (const Mapping & m : pool) {
     // TODO: get rid of bipart-specific stuff
-    cost_to_mapping.emplace_back(computeBipartCost(pb.hypergraph, m), m);
+    cost_to_mapping.emplace_back(computeCostBipart(pb.hypergraph, m), m);
   }
   std::sort (cost_to_mapping.begin(), cost_to_mapping.end(), [](const CM &a, const CM &b) { return a.first < b.first; });
   pool.clear();

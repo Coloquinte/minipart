@@ -7,6 +7,7 @@
 namespace minipart {
 
 class HypergraphBuilder;
+class Hypergraph;
 
 struct HEdgeData {
   Index limit_;
@@ -90,6 +91,9 @@ class HypergraphBuilder {
 
   friend class Hypergraph;
 };
+
+std::int64_t computeCostBipart(const Hypergraph&, const Mapping&);
+std::vector<int> countCutsBipart(const Hypergraph &, const std::vector<Mapping> &);
 
 inline Hypergraph::Hypergraph() {
   edges_.emplace_back(0, 0);

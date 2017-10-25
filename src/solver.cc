@@ -21,6 +21,7 @@ class BipartSolver {
   void optimize();
   void coarsen_recurse();
   void report();
+  void sort_pool();
 
  private:
   // Problem to solve
@@ -59,10 +60,11 @@ BipartSolver::BipartSolver(Problem pb, SolverOptions options, std::shared_ptr<st
 
 void BipartSolver::run() {
   place();
-  report();
   optimize();
+  report();
   coarsen_recurse();
   optimize();
+  report();
 }
 
 void BipartSolver::report() {
@@ -74,7 +76,7 @@ void BipartSolver::report() {
   std::int64_t min_cost = std::numeric_limits<std::int64_t>::max();
   double avg_cost = 0.0;
   for (const Mapping &m : solution_pool_) {
-    std::int64_t cost = computeBipartCost(pb_.hypergraph, m);
+    std::int64_t cost = computeCostBipart(pb_.hypergraph, m);
     min_cost = std::min(min_cost, cost);
     avg_cost += cost;
   }
@@ -124,6 +126,7 @@ void BipartSolver::coarsen_recurse() {
   std::size_t target_n_nodes = pb_.hypergraph.nNodes() * 0.5;
   if (target_n_nodes < 20) return;
 
+  sort_pool();
   auto next_pools = select_pool_coarsenings(pb_, solution_pool_, target_n_nodes, rgens_->at(0));
   solution_pool_.clear();
 
@@ -135,7 +138,7 @@ void BipartSolver::coarsen_recurse() {
     std::vector<Mapping> c_mappings;
     for (const Mapping &m : selected) {
       auto c_m = coarsening(m);
-      assert (computeBipartCost(pb_.hypergraph, m) == computeBipartCost(c_pb.hypergraph, c_m));
+      assert (computeCostBipart(pb_.hypergraph, m) == computeCostBipart(c_pb.hypergraph, c_m));
       c_mappings.push_back(c_m);
     }
 
@@ -146,9 +149,22 @@ void BipartSolver::coarsen_recurse() {
     // Read results back
     for (const Mapping &c_m : coarsened.mappings()) {
       auto m = coarsening.reverse(c_m);
-      assert (computeBipartCost(pb_.hypergraph, m) == computeBipartCost(c_pb.hypergraph, c_m));
+      assert (computeCostBipart(pb_.hypergraph, m) == computeCostBipart(c_pb.hypergraph, c_m));
       solution_pool_.push_back(m);
     }
+  }
+}
+
+void BipartSolver::sort_pool() {
+  typedef std::pair<std::int64_t, Mapping> CM;
+  std::vector<CM> cost_to_mapping;
+  for (const Mapping & m : solution_pool_) {
+    cost_to_mapping.emplace_back(computeCostBipart(pb_.hypergraph, m), m);
+  }
+  std::sort (cost_to_mapping.begin(), cost_to_mapping.end(), [](const CM &a, const CM &b) { return a.first < b.first; });
+  solution_pool_.clear();
+  for (CM &c : cost_to_mapping) {
+    solution_pool_.emplace_back(c.second);
   }
 }
 
