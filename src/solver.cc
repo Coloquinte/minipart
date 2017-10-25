@@ -12,13 +12,13 @@ class BipartSolver {
   BipartSolver(Problem pb, SolverOptions options, std::shared_ptr<std::vector<std::minstd_rand> > rgens, std::vector<Mapping> pool, std::size_t level);
   BipartSolver(Problem pb, SolverOptions options);
 
+  void place();
   void run();
   const Mapping &solution();
 
   const std::vector<Mapping> &mappings() const { return solution_pool_; }
 
  private:
-  void place();
   void optimize();
   void coarsen_recurse();
   void report();
@@ -60,7 +60,6 @@ BipartSolver::BipartSolver(Problem pb, SolverOptions options, std::shared_ptr<st
 }
 
 void BipartSolver::run() {
-  place();
   optimize();
   report();
   coarsen_recurse();
@@ -177,6 +176,7 @@ const Mapping &BipartSolver::solution() {
 
 Mapping solve(const Problem &pb, const SolverOptions &options) {
   BipartSolver s(pb, options);
+  s.place();
   for (std::size_t i = 0; i < options.n_cycles; ++i) {
     s.run();
   }

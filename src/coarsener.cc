@@ -114,12 +114,29 @@ std::pair<Coarsening, std::vector<Mapping> > select_for_coarsening(const std::ve
   return std::make_pair(ret, selected);
 }
 
+// Give several coarsening solutions, each associated with part of the pool
 std::vector<std::pair<Coarsening, std::vector<Mapping> > > select_pool_coarsenings(const Problem &pb, const std::vector<Mapping> &pool, std::size_t target_n_nodes, std::minstd_rand &rgen) {
   std::vector<std::pair<Coarsening, std::vector<Mapping> > > ret;
 
-  std::vector<Mapping> selected = pool;
-  std::shuffle(selected.begin() + 1, selected.end(), rgen);
-  ret.push_back(select_for_coarsening(selected, target_n_nodes));
+  // Try using all solutions
+  Coarsening using_all = infer_coarsening_blackbox(pool);
+  if (using_all.nNodesOut() < 0.8 * pb.hypergraph.nNodes()) {
+    // If the coarsening is good
+    ret.emplace_back(using_all, pool);
+  }
+  else {
+    // The problem size was not reduced enough
+    // Use two coarsenings with half the pool each
+    std::vector<Mapping> shuffled = pool;
+    std::shuffle(shuffled.begin(), shuffled.end(), rgen);
+    for (std::size_t i = 0; i < 2; ++i) {
+      std::vector<Mapping> selected;
+      for (std::size_t j = i; j < shuffled.size(); j += 2) {
+        selected.push_back(shuffled[j]);
+      }
+      ret.emplace_back(infer_coarsening_blackbox(selected), selected);
+    }
+  }
 
   return ret;
 }
