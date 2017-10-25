@@ -12,7 +12,6 @@ Problem readHMetis(std::istream &s, bool vectorize=true);
 void writeHMetis(const Problem &pb, std::ostream &s);
 
 void reportStats(const Problem &pb, std::ostream &s);
-void reportResults(const Problem &pb, const std::vector<Mapping> &m, std::ostream &s);
 
 }  // End namespace minipart
 

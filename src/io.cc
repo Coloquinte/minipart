@@ -274,24 +274,6 @@ std::vector<int> countCutsBipart(const Hypergraph &h, const std::vector<Mapping>
   return cut_counts;
 }
 
-void reportResults(const Problem &pb, const std::vector<Mapping> &mappings, std::ostream &s) {
-  if (mappings.empty()) {
-    std::cout << "No feasible placement" << std::endl;
-    return;
-  }
-  std::cout << mappings.size() << " feasible placements, ";
-
-  std::vector<int> costs;
-  for (const Mapping &m : mappings) {
-    // TODO: get rid of bipart-specific stuff
-    costs.push_back(computeCostBipart(pb.hypergraph, m));
-  }
-
-  auto summary = computeAvgAndDev(costs);
-  s << std::fixed << std::setw(10) << std::setprecision(2);
-  s << "Cost: average " << summary.first  << ", minimum " << *std::min_element(costs.begin(), costs.end()) << ", deviation " << summary.second  << "%" << std::endl;
-}
-
 }  // End namespace minipart
 
 

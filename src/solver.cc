@@ -13,6 +13,7 @@ class BipartSolver {
   BipartSolver(Problem pb, SolverOptions options);
 
   void run();
+  const Mapping &solution();
 
   const std::vector<Mapping> &mappings() const { return solution_pool_; }
 
@@ -147,7 +148,7 @@ void BipartSolver::coarsen_recurse() {
     coarsened.run();
 
     // Read results back
-    for (const Mapping &c_m : coarsened.mappings()) {
+    for (const Mapping &c_m : coarsened.solution_pool_) {
       auto m = coarsening.reverse(c_m);
       assert (computeCostBipart(pb_.hypergraph, m) == computeCostBipart(c_pb.hypergraph, c_m));
       solution_pool_.push_back(m);
@@ -168,12 +169,18 @@ void BipartSolver::sort_pool() {
   }
 }
 
-std::vector<Mapping> solve(const Problem &pb, const SolverOptions &options) {
+const Mapping &BipartSolver::solution() {
+  if (solution_pool_.empty()) throw std::runtime_error("No solution found");
+  sort_pool();
+  return solution_pool_.front();
+}
+
+Mapping solve(const Problem &pb, const SolverOptions &options) {
   BipartSolver s(pb, options);
   for (std::size_t i = 0; i < options.n_cycles; ++i) {
     s.run();
   }
-  return s.mappings();
+  return s.solution();
 }
 
 } // End namespace minipart

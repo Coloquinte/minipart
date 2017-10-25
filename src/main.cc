@@ -78,8 +78,6 @@ po::options_description getOptions() {
   desc.add_options()("seed", po::value<std::size_t>()->default_value(0),
       "random generator seed");
 
-  desc.add_options()("stats", "print problem statistics");
-
   desc.add_options()("verbose,v", po::value<std::size_t>()->default_value(1),
       "verbosity level");
 
@@ -89,14 +87,12 @@ po::options_description getOptions() {
 po::options_description getHiddenOptions() {
   po::options_description desc("Hidden options");
 
-  desc.add_options()("dump-hmetis", po::value<std::string>(),
-      "dump a .hgr file for debug purposes");
-
+  desc.add_options()("stats", "print problem statistics");
 
   return desc;
 }
 
-po::variables_map parseArguments(int argc, char **argv) {
+po::variables_map parse_arguments(int argc, char **argv) {
   po::options_description desc = getOptions();
   po::options_description hidden = getHiddenOptions();
 
@@ -142,12 +138,12 @@ po::variables_map parseArguments(int argc, char **argv) {
   return vm;
 }
 
-Problem parseGraph(const po::variables_map &vm) {
+Problem parse_graph(const po::variables_map &vm) {
   std::ifstream hf(vm["hmetis"].as<std::string>());
   return readHMetis(hf);
 }
 
-void setupCapacities(const po::variables_map &vm, Problem &pb) {
+void setup_capacities(const po::variables_map &vm, Problem &pb) {
   std::vector<int> totals(pb.demands.size2(), 0);
   for (std::size_t i = 0; i < pb.demands.size1(); ++i) {
     for (std::size_t j = 0; j < pb.demands.size2(); ++j) {
@@ -166,64 +162,47 @@ void setupCapacities(const po::variables_map &vm, Problem &pb) {
   }
 }
 
-void reportInputs(const po::variables_map &vm, Problem &pb) {
-  if (vm.count("dump-hmetis")) {
-    std::ofstream hf(vm["dump-hmetis"].as<std::string>());
-    writeHMetis(pb, hf);
-  }
+void report_inputs(const po::variables_map &vm, Problem &pb) {
   if (vm.count("stats")) reportStats(pb, std::cout);
 }
 
-void writeResult(const po::variables_map &vm, const std::vector<Mapping> &mappings) {
-  if (!mappings.empty() && vm.count("output")) {
+void write_solution(const po::variables_map &vm, const Mapping &mapping) {
+  if (vm.count("output")) {
     std::ofstream of(vm["output"].as<std::string>());
-    for (std::size_t i = 0; i < mappings.front().nNodes(); ++i) {
-      of << (std::size_t) mappings.front()[Node(i)].id << std::endl;
+    for (std::size_t i = 0; i < mapping.nNodes(); ++i) {
+      of << (std::size_t) mapping[Node(i)].id << std::endl;
     }
   }
 }
 
-void check_solutions(const Problem &pb, std::vector<Mapping> &pool) {
+void check_solution(const Problem &pb, const Mapping &sol) {
   // TODO: add checkers
 }
 
-void sort_solutions(const Problem &pb, std::vector<Mapping> &pool) {
-  typedef std::pair<std::int64_t, Mapping> CM;
-  std::vector<CM> cost_to_mapping;
-  for (const Mapping & m : pool) {
-    // TODO: get rid of bipart-specific stuff
-    cost_to_mapping.emplace_back(computeCostBipart(pb.hypergraph, m), m);
-  }
-  std::sort (cost_to_mapping.begin(), cost_to_mapping.end(), [](const CM &a, const CM &b) { return a.first < b.first; });
-  pool.clear();
-  for (CM &c : cost_to_mapping) {
-    pool.emplace_back(c.second);
-  }
-}
-
-int main(int argc, char **argv) {
-  po::variables_map vm = parseArguments(argc, argv);
-  Problem pb = parseGraph(vm);
-  setupCapacities(vm, pb);
-
+SolverOptions get_options(const po::variables_map &vm) {
   SolverOptions opt;
   opt.n_starts  = vm["starts"].as<std::size_t>();
   opt.n_cycles  = vm["v-cycles"].as<std::size_t>();
   opt.n_threads = vm["threads"].as<std::size_t>();
   opt.seed      = vm["seed"].as<std::size_t>();
   opt.verbosity = vm["verbose"].as<std::size_t>();
+  return opt;
+}
 
-  reportInputs(vm, pb);
+int main(int argc, char **argv) {
+  po::variables_map vm = parse_arguments(argc, argv);
+  Problem pb = parse_graph(vm);
+  setup_capacities(vm, pb);
+  report_inputs(vm, pb);
 
-  std::vector<Mapping> mappings = solve(pb, opt);
+  SolverOptions opt = get_options(vm);
+  Mapping mapping = solve(pb, opt);
+  check_solution(pb, mapping);
+  write_solution(vm, mapping);
 
-  check_solutions(pb, mappings);
-  sort_solutions(pb, mappings);
-
-  reportResults(pb, mappings, std::cout);
-
-  writeResult(vm, mappings);
-
+  if (opt.verbosity >= 1) {
+    std::cout << "Best solution found: " << computeCostBipart(pb.hypergraph, mapping) << std::endl;
+  }
   return 0;
 }
 

@@ -21,7 +21,7 @@ struct SolverOptions {
 };
 
 // Main solving function
-std::vector<Mapping> solve(const Problem &pb, const SolverOptions &options);
+Mapping solve(const Problem &pb, const SolverOptions &options);
 
 }  // End namespace minipart
 
