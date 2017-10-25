@@ -83,7 +83,10 @@ void greedy_pass(IncBipart &inc, std::minstd_rand &rgen, int passes=3) {
 }
 
 void positive_gain_pass(IncBipart &inc, std::minstd_rand &rgen) {
-  std::vector<Node> q(inc.nodes().begin(), inc.nodes().end());
+  std::vector<Node> q;
+  for (Node n : inc.nodes()) {
+    if (inc.gain(n) > 0) q.push_back(n);
+  }
   std::shuffle(q.begin(), q.end(), rgen);
 
   while (!q.empty()) {
@@ -96,7 +99,10 @@ void positive_gain_pass(IncBipart &inc, std::minstd_rand &rgen) {
 
 template <typename Queue>
 void non_negative_gain_pass(IncBipart &inc, std::minstd_rand &rgen, const int max_zero_gain_moves = 1) {
-  std::vector<Node> nodes (inc.nodes().begin(), inc.nodes().end());
+  std::vector<Node> nodes;
+  for (Node n : inc.nodes()) {
+    if (inc.gain(n) >= 0) nodes.push_back(n);
+  }
   std::shuffle(nodes.begin(), nodes.end(), rgen);
 
   Queue q(inc);
@@ -117,7 +123,10 @@ void non_negative_gain_pass(IncBipart &inc, std::minstd_rand &rgen, const int ma
 
 template <typename Queue>
 void dual_queue_pass(IncBipart &inc, std::minstd_rand &rgen, const int max_zero_gain_moves = 1) {
-  std::vector<Node> nodes (inc.nodes().begin(), inc.nodes().end());
+  std::vector<Node> nodes;
+  for (Node n : inc.nodes()) {
+    if (inc.gain(n) >= 0) nodes.push_back(n);
+  }
   std::shuffle(nodes.begin(), nodes.end(), rgen);
 
   std::vector<Queue> q(2, Queue(inc));
@@ -171,7 +180,10 @@ HybridPassFunctor<Queue>::HybridPassFunctor(IncBipart &inc, std::minstd_rand &rg
   q_ = std::vector<Queue> (2, Queue(inc));
   current_ = false;
 
-  std::vector<Node> nodes (inc.nodes().begin(), inc.nodes().end());
+  std::vector<Node> nodes;
+  for (Node n : inc.nodes()) {
+    if (inc.gain(n) >= 0) nodes.push_back(n);
+  }
   std::shuffle(nodes.begin(), nodes.end(), rgen);
 
   for (Node n : nodes) {
@@ -442,13 +454,11 @@ void place(IncBipart &inc, std::minstd_rand &rgen) {
 }
 
 void optimize(IncBipart &inc, std::minstd_rand &rgen) {
-  //dual_queue_pass<PosQueue>(inc, rgen);
   hybrid_pass<PosQueue>(inc, rgen);
   hybrid_pass<PosQueue>(inc, rgen);
   probing_pass<PosQueue>(inc, rgen, 5);
   edge_centric_pass(inc, rgen);
   swap_pass(inc, rgen);
-  //exhaustive_pass(inc, rgen);
 }
 
 } // End namespace minipart
