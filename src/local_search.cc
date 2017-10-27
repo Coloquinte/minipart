@@ -44,29 +44,28 @@ void random_placement_pass(IncBipart &inc, std::minstd_rand &rgen) {
   legalization_pass(inc, rgen);
 }
 
+template <typename Queue>
 void traction_placement_pass(IncBipart &inc, std::minstd_rand &rgen) {
-  // TODO: this is crappy: make it pull from the overflowed side
-
-  // Initialize with random nodes
-  std::vector<Node> nodes (inc.nodes().begin(), inc.nodes().end());
+  std::vector<Node> nodes(inc.nodes().begin(), inc.nodes().end());
   std::shuffle(nodes.begin(), nodes.end(), rgen);
 
-  // Put a limit on possible quadratic complexity: better fail early
-  std::size_t moves_left = 2 * inc.nNodes();
+  std::vector<Queue> q(2, Queue(inc));
+  for (Node n : nodes) {
+    q[inc.mapping(n)].push(n);
+  }
 
-  ThresholdQueue q(inc);
-  while (!inc.legal() && moves_left) {
-    // Pick one node
-    if (nodes.empty()) break;
-    q.push(nodes.back());
-    nodes.pop_back();
+  const std::size_t max_moves = 2 * inc.nNodes();
 
-    // Pull other nodes with it
-    do {
-      Node n = q.pop();
-      if (!inc.overflow(inc.mapping(n))) continue;
-      inc.move(n, [&](Node o, Weight w) { q.push(o); });
-    } while (!q.empty() && --moves_left);
+  // TODO: use a FIFO queue to avoid ping-pong
+  for (std::size_t i = 0; i < max_moves; ++i) {
+    if (inc.legal()) break;
+    bool from = inc.overflow(true);
+    while (inc.overflow(from) && !q[from].empty()) {
+      Node n = q[from].pop();
+      if (inc.mapping(n) == from) {
+        inc.move(n, [&](Node o, int w) { q[from].push(o); });
+      }
+    }
   }
 }
 
@@ -454,9 +453,9 @@ void place(IncBipart &inc, std::minstd_rand &rgen) {
 }
 
 void optimize(IncBipart &inc, std::minstd_rand &rgen) {
-  hybrid_pass<PosQueue>(inc, rgen);
-  hybrid_pass<PosQueue>(inc, rgen);
-  probing_pass<PosQueue>(inc, rgen, 5);
+  hybrid_pass<PosQueue<> >(inc, rgen);
+  hybrid_pass<PosQueue<> >(inc, rgen);
+  probing_pass<PosQueue<> >(inc, rgen, 5);
   edge_centric_pass(inc, rgen);
   swap_pass(inc, rgen);
 }

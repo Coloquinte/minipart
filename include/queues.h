@@ -12,9 +12,41 @@
 
 #include "inc_bipart.h"
 
+#include <queue>
+
 namespace minipart {
 
+template <bool FIFO>
+class BasicQueue;
+
+template <>
+class BasicQueue<false> {
+ public:
+  bool empty() const { return d_.empty(); }
+  Node top() const { return d_.back(); }
+  void pop() { d_.pop_back(); }
+  void push(Node n) { d_.push_back(n); }
+  void clear() { d_.clear(); }
+
+ private:
+  std::vector<Node> d_;
+};
+
+template <>
+class BasicQueue<true> {
+ public:
+  bool empty() const { return d_.empty(); }
+  Node top() const { return d_.front(); }
+  void pop() { d_.pop_front(); }
+  void push(Node n) { d_.push_back(n); }
+  void clear() { d_.clear(); }
+
+ private:
+  std::deque<Node> d_;
+};
+
 // Queue that only handles positive and zero gain
+template <bool FIFO=false>
 class PosQueue {
  public:
   PosQueue(const IncBipart &inc)
@@ -22,17 +54,17 @@ class PosQueue {
 
   bool empty() {
     while (!pos_gain_.empty()) {
-      Node n = pos_gain_.back();
+      Node n = pos_gain_.top();
       if (inc_.gain(n) <= 0) {
-        pos_gain_.pop_back();
-        zero_gain_.push_back(n);
+        pos_gain_.pop();
+        zero_gain_.push(n);
       }
       else return false;
     }
     while (!zero_gain_.empty()) {
-      Node n = zero_gain_.back();
+      Node n = zero_gain_.top();
       if (inc_.gain(n) < 0) {
-        zero_gain_.pop_back();
+        zero_gain_.pop();
       }
       else return false;
     }
@@ -42,22 +74,22 @@ class PosQueue {
   Node pop() {
     empty(); // Consume all out-of-place nodes
     if (!pos_gain_.empty()) {
-      Node n = pos_gain_.back();
-      pos_gain_.pop_back();
+      Node n = pos_gain_.top();
+      pos_gain_.pop();
       return n;
     }
-    Node n = zero_gain_.back();
-    zero_gain_.pop_back();
+    Node n = zero_gain_.top();
+    zero_gain_.pop();
     return n;
   }
 
   void push(Node n) {
     Weight g = inc_.gain(n);
     if (g > 0) {
-      pos_gain_.push_back(n);
+      pos_gain_.push(n);
     }
     else if (g == 0) {
-      zero_gain_.push_back(n);
+      zero_gain_.push(n);
     }
   }
 
@@ -67,12 +99,13 @@ class PosQueue {
   }
 
  private:
-  std::vector<Node> pos_gain_;
-  std::vector<Node> zero_gain_;
+  BasicQueue<FIFO> pos_gain_;
+  BasicQueue<FIFO> zero_gain_;
   const IncBipart &inc_;
 };
 
 // Queue with positive, zero, and negative gain
+template <bool FIFO=false>
 class ThresholdQueue {
  public:
   ThresholdQueue(const IncBipart &inc)
@@ -80,18 +113,18 @@ class ThresholdQueue {
 
   bool empty() {
     while (!pos_gain_.empty()) {
-      Node n = pos_gain_.back();
+      Node n = pos_gain_.top();
       if (inc_.gain(n) <= 0) {
-        pos_gain_.pop_back();
-        zero_gain_.push_back(n);
+        pos_gain_.pop();
+        zero_gain_.push(n);
       }
       else return false;
     }
     while (!zero_gain_.empty()) {
-      Node n = zero_gain_.back();
+      Node n = zero_gain_.top();
       if (inc_.gain(n) < 0) {
-        zero_gain_.pop_back();
-        neg_gain_.push_back(n);
+        zero_gain_.pop();
+        neg_gain_.push(n);
       }
       else return false;
     }
@@ -100,32 +133,32 @@ class ThresholdQueue {
 
   Node pop() {
     while (!pos_gain_.empty()) {
-      Node n = pos_gain_.back();
-      pos_gain_.pop_back();
+      Node n = pos_gain_.top();
+      pos_gain_.pop();
       if (inc_.gain(n) > 0) return n;
-      else zero_gain_.push_back(n);
+      else zero_gain_.push(n);
     }
     while (!zero_gain_.empty()) {
-      Node n = zero_gain_.back();
-      zero_gain_.pop_back();
+      Node n = zero_gain_.top();
+      zero_gain_.pop();
       if (inc_.gain(n) >= 0) return n;
-      else neg_gain_.push_back(n);
+      else neg_gain_.push(n);
     }
-    Node n = neg_gain_.back();
-    neg_gain_.pop_back();
+    Node n = neg_gain_.top();
+    neg_gain_.pop();
     return n;
   }
 
   void push(Node n) {
     Weight g = inc_.gain(n);
     if (g > 0) {
-      pos_gain_.push_back(n);
+      pos_gain_.push(n);
     }
     else if (g == 0) {
-      zero_gain_.push_back(n);
+      zero_gain_.push(n);
     }
     else {
-      neg_gain_.push_back(n);
+      neg_gain_.push(n);
     }
   }
 
@@ -136,13 +169,14 @@ class ThresholdQueue {
   }
 
  private:
-  std::vector<Node> pos_gain_;
-  std::vector<Node> zero_gain_;
-  std::vector<Node> neg_gain_;
+  BasicQueue<FIFO> pos_gain_;
+  BasicQueue<FIFO> zero_gain_;
+  BasicQueue<FIFO> neg_gain_;
   const IncBipart &inc_;
 };
 
 // Typical bucket queue
+template <bool FIFO=false>
 class FMQueue {
  public:
   FMQueue(const IncBipart &inc)
@@ -165,11 +199,11 @@ class FMQueue {
         --last_bucket_;
       }
       if (buckets_[last_bucket_].empty()) return true;
-      Node n = buckets_[last_bucket_].back();
+      Node n = buckets_[last_bucket_].top();
       Weight bucket = inc_.gain(n) + max_gain_;
       if (bucket != last_bucket_) {
-        buckets_[last_bucket_].pop_back();
-        buckets_[bucket].push_back(n);
+        buckets_[last_bucket_].pop();
+        buckets_[bucket].push(n);
         last_bucket_ = std::max(last_bucket_, bucket);
       }
       else return false;
@@ -178,14 +212,14 @@ class FMQueue {
 
   Node pop() {
     empty(); // Consume all out-of-place nodes
-    Node n = buckets_[last_bucket_].back();
-    buckets_[last_bucket_].pop_back();
+    Node n = buckets_[last_bucket_].top();
+    buckets_[last_bucket_].pop();
     return n;
   }
 
   void push(Node n) {
     Weight bucket = max_gain_ + inc_.gain(n);
-    buckets_[bucket].push_back(n);
+    buckets_[bucket].push(n);
     last_bucket_ = std::max(bucket, last_bucket_);
   }
 
@@ -197,7 +231,7 @@ class FMQueue {
 
  private:
   const IncBipart &inc_;
-  std::vector<std::vector<Node> > buckets_;
+  std::vector<BasicQueue<FIFO> > buckets_;
   Weight last_bucket_;
   Weight max_gain_;
 };
