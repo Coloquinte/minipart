@@ -13,6 +13,8 @@ class Coarsening {
   std::size_t nNodesIn() const { return m_.size(); }
   std::size_t nNodesOut() const { return n_out_; }
 
+  Node addNode() { return Node(n_out_++); }
+
   Node  operator[](Node n) const { return m_[n.id]; }
   Node& operator[](Node n)       { return m_[n.id]; }
 
@@ -22,8 +24,6 @@ class Coarsening {
 
   // Reverse a coarsening
   Mapping reverse (const Mapping &m) const;
-
-  void checkConsistency() const;
 
  private:
   std::vector<Node> m_;

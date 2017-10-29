@@ -14,6 +14,9 @@ Mapping Coarsening::operator() (const Mapping &m) const {
     Node c = m_[i];
     ret[c] = m[n];
   }
+
+  // Check that the coarsening is consistent with the mapping
+  // It should only merge nodes that belong to the same partition
   for (std::size_t i = 0; i < nNodesIn(); ++i) {
     Node n(i);
     Node c = m_[i];
@@ -70,7 +73,7 @@ Mapping Coarsening::reverse (const Mapping &m) const {
 }
 
 Coarsening infer_coarsening_blackbox(const std::vector<Mapping> &mappings) {
-  // TODO: non-blackbox algorithm, restricting coarse nodes to connected components
+  // Coarsen nodes that are always together in the same partition
   assert (mappings.size() <= 64);
 
   std::vector<std::uint64_t> placements(mappings.front().nNodes(), 0);
@@ -94,6 +97,53 @@ Coarsening infer_coarsening_blackbox(const std::vector<Mapping> &mappings) {
     std::size_t id = placement_to_coarsening.at(placements[i]);
     ret[Node(i)] = Node(id);
   }
+  return ret;
+}
+
+Coarsening infer_coarsening_connected(const Hypergraph &h, const std::vector<Mapping> &mappings) {
+  // Coarsen edges that are never cut
+  std::vector<int> cuts = countCutsBipart(h, mappings);
+
+  //std::vector<Index> ids(h.nNodes(), 0);
+  //Index cur_id = 0;
+  Coarsening ret(h.nNodes(), 0);
+
+  // Typical DFS for connected components
+  std::vector<Node> nodes_to_visit;
+  std::vector<char> node_visited(h.nNodes(), 0);
+  std::vector<char> edge_visited(h.nEdges(), 0);
+
+  for (Node n : h.nodes()) {
+    if (node_visited[n.id]) continue;
+
+    Node o = ret.addNode();
+    nodes_to_visit.push_back(n);
+
+    while (!nodes_to_visit.empty()) {
+      Node v = nodes_to_visit.back();
+      nodes_to_visit.pop_back();
+
+      if (node_visited[v.id]) continue;
+      node_visited[v.id] = true;
+      ret[v] = o;
+
+      for (Edge e : h.edges(v)) {
+        // This avoids quadratic complexity
+        if (edge_visited[e.id]) continue;
+        edge_visited[e.id] = true;
+
+        // Only coarsen edges which are never cut
+        if (cuts[e.id] != 0) continue;
+
+        for (Node s : h.nodes(e)) {
+          nodes_to_visit.push_back(s);
+        }
+      }
+    }
+
+    assert (nodes_to_visit.empty());
+  }
+
   return ret;
 }
 
@@ -123,19 +173,19 @@ std::vector<std::pair<Coarsening, std::vector<Mapping> > > select_pool_coarsenin
   if (using_all.nNodesOut() < 0.8 * pb.hypergraph.nNodes()) {
     // If the coarsening is good
     ret.emplace_back(using_all, pool);
+    return ret;
   }
-  else {
-    // The problem size was not reduced enough
-    // Use two coarsenings with half the pool each
-    std::vector<Mapping> shuffled = pool;
-    std::shuffle(shuffled.begin(), shuffled.end(), rgen);
-    for (std::size_t i = 0; i < 2; ++i) {
-      std::vector<Mapping> selected;
-      for (std::size_t j = i; j < shuffled.size(); j += 2) {
-        selected.push_back(shuffled[j]);
-      }
-      ret.emplace_back(infer_coarsening_blackbox(selected), selected);
+
+  // The problem size was not reduced enough
+  // Use two coarsenings with half the pool each
+  std::vector<Mapping> shuffled = pool;
+  std::shuffle(shuffled.begin(), shuffled.end(), rgen);
+  for (std::size_t i = 0; i < 2; ++i) {
+    std::vector<Mapping> selected;
+    for (std::size_t j = i; j < shuffled.size(); j += 2) {
+      selected.push_back(shuffled[j]);
     }
+    ret.emplace_back(infer_coarsening_blackbox(selected), selected);
   }
 
   return ret;
