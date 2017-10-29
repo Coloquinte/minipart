@@ -63,15 +63,15 @@ po::options_description getOptions() {
       ->notifier(check_parts),
       "number of partitions");
 
-  desc.add_options()("starts", po::value<std::size_t>()->default_value(32)
+  desc.add_options()("starts", po::value<std::size_t>()->default_value(64)
       ->notifier(check_starts),
       "number of starting points");
 
-  desc.add_options()("v-cycles", po::value<std::size_t>()->default_value(2)
+  desc.add_options()("v-cycles", po::value<std::size_t>()->default_value(5)
       ->notifier(check_cycles),
       "number of coarsening-uncoarsening cycles");
 
-  desc.add_options()("threads,j", po::value<std::size_t>()->default_value(2)
+  desc.add_options()("threads,j", po::value<std::size_t>()->default_value(4)
       ->notifier(check_threads),
       "number of concurrent threads");
 

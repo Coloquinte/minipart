@@ -25,6 +25,8 @@ class Coarsening {
   // Reverse a coarsening
   Mapping reverse (const Mapping &m) const;
 
+  void checkConsistency() const;
+
  private:
   std::vector<Node> m_;
   std::size_t n_out_;

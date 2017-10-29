@@ -123,9 +123,8 @@ void BipartSolver::optimize() {
 }
 
 void BipartSolver::coarsen_recurse() {
-  std::size_t target_n_nodes = pb_.hypergraph.nNodes() * 0.5;
+  std::size_t target_n_nodes = pb_.hypergraph.nNodes() * 0.8;
   if (target_n_nodes < 20) return;
-  if (solution_pool_.size() <= 1) return;
 
   sort_pool();
   auto next_pools = select_pool_coarsenings(pb_, solution_pool_, target_n_nodes, rgens_->at(0));

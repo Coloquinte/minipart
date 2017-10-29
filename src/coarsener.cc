@@ -72,7 +72,27 @@ Mapping Coarsening::reverse (const Mapping &m) const {
   return ret;
 }
 
-Coarsening infer_coarsening_blackbox(const std::vector<Mapping> &mappings) {
+void Coarsening::checkConsistency() const {
+  std::vector<char> used(nNodesOut(), 0);
+  for (Node n : m_) {
+    assert (n.id < nNodesOut());
+    used[n.id] = true;
+  }
+  for (char u : used) {
+    assert (u);
+  }
+}
+
+bool mappings_are_bipart(const std::vector<Mapping> &mappings) {
+  bool ret = true;
+  for (const Mapping &m : mappings) {
+    for (Index i = 0; i < m.nNodes(); ++i) {
+      ret |= (m[Node(i)].id > 1);
+    }
+  }
+  return ret;
+}
+Coarsening infer_coarsening_blackbox(const Problem &pb, const std::vector<Mapping> &mappings) {
   // Coarsen nodes that are always together in the same partition
   assert (mappings.size() <= 64);
 
@@ -92,15 +112,18 @@ Coarsening infer_coarsening_blackbox(const std::vector<Mapping> &mappings) {
     bool inserted = placement_to_coarsening.emplace(pl, cur_id).second;
     if (inserted) ++cur_id;
   }
-  Coarsening ret(placements.size(), cur_id+1);
+  Coarsening ret(placements.size(), cur_id);
   for (std::size_t i = 0; i < placements.size(); ++i) {
     std::size_t id = placement_to_coarsening.at(placements[i]);
     ret[Node(i)] = Node(id);
   }
+  ret.checkConsistency();
   return ret;
 }
 
-Coarsening infer_coarsening_connected(const Hypergraph &h, const std::vector<Mapping> &mappings) {
+Coarsening infer_coarsening_connected(const Problem &pb, const std::vector<Mapping> &mappings) {
+  const Hypergraph &h = pb.hypergraph;
+
   // Coarsen edges that are never cut
   std::vector<int> cuts = countCutsBipart(h, mappings);
 
@@ -144,10 +167,11 @@ Coarsening infer_coarsening_connected(const Hypergraph &h, const std::vector<Map
     assert (nodes_to_visit.empty());
   }
 
+  ret.checkConsistency();
   return ret;
 }
 
-std::pair<Coarsening, std::vector<Mapping> > select_for_coarsening(const std::vector<Mapping> &mappings, std::size_t target_nnodes) {
+std::pair<Coarsening, std::vector<Mapping> > select_for_coarsening(const Problem &pb, const std::vector<Mapping> &mappings, std::size_t target_nnodes) {
   // Select only the first few mappings to get a coarse solution
   //   i.e. the largest solution that has that many nodes or fewer
   // Assume the mapping are already sorted in a nice order - best first for example
@@ -157,7 +181,7 @@ std::pair<Coarsening, std::vector<Mapping> > select_for_coarsening(const std::ve
   Coarsening ret;
 
   for (std::size_t i = 1; i < mappings.size(); ++i) {
-    ret = infer_coarsening_blackbox(selected);
+    ret = infer_coarsening_blackbox(pb, selected);
     if (ret.nNodesOut() <= target_nnodes) break;
     selected.pop_back();
   }
@@ -165,19 +189,29 @@ std::pair<Coarsening, std::vector<Mapping> > select_for_coarsening(const std::ve
 }
 
 // Give several coarsening solutions, each associated with part of the pool
+// Criterions are:
+//    * Less nodes --> smaller problems
+//    * Sharing --> less work to do; more information on what's worth coarsening
+
 std::vector<std::pair<Coarsening, std::vector<Mapping> > > select_pool_coarsenings(const Problem &pb, const std::vector<Mapping> &pool, std::size_t target_n_nodes, std::minstd_rand &rgen) {
+  assert (mappings_are_bipart(pool));
   std::vector<std::pair<Coarsening, std::vector<Mapping> > > ret;
 
-  // Try using all solutions
-  Coarsening using_all = infer_coarsening_blackbox(pool);
-  if (using_all.nNodesOut() < 0.8 * pb.hypergraph.nNodes()) {
-    // If the coarsening is good
+  // Try several techniques until we have something good enough
+  Coarsening using_all = infer_coarsening_connected(pb, pool);
+  if (using_all.nNodesOut() <= target_n_nodes) {
     ret.emplace_back(using_all, pool);
     return ret;
   }
 
-  // The problem size was not reduced enough
-  // Use two coarsenings with half the pool each
+  Coarsening blackbox = infer_coarsening_blackbox(pb, pool);
+  //assert (blackbox.nNodesOut() <= using_all.nNodesOut());
+  if (blackbox.nNodesOut() <= target_n_nodes || pool.size() == 1) {
+    ret.emplace_back(blackbox, pool);
+    return ret;
+  }
+
+  // If neither is coarse enough use two coarsenings with half the pool each
   std::vector<Mapping> shuffled = pool;
   std::shuffle(shuffled.begin(), shuffled.end(), rgen);
   for (std::size_t i = 0; i < 2; ++i) {
@@ -185,7 +219,7 @@ std::vector<std::pair<Coarsening, std::vector<Mapping> > > select_pool_coarsenin
     for (std::size_t j = i; j < shuffled.size(); j += 2) {
       selected.push_back(shuffled[j]);
     }
-    ret.emplace_back(infer_coarsening_blackbox(selected), selected);
+    ret.emplace_back(infer_coarsening_connected(pb, selected), selected);
   }
 
   return ret;
