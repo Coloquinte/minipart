@@ -176,7 +176,27 @@ void write_solution(const po::variables_map &vm, const Mapping &mapping) {
 }
 
 void check_solution(const Problem &pb, const Mapping &sol) {
-  // TODO: add checkers
+  std::size_t nParts = pb.capacities.size1();
+  std::size_t nResources = pb.capacities.size2();
+
+  Matrix<Resource> usage(nParts, nResources);
+  for (std::size_t i = 0; i < nParts; ++i) {
+    for (std::size_t j = 0; j < nResources; ++j) {
+      usage(i, j) = 0;
+    }
+  }
+
+  for (Node n : pb.hypergraph.nodes()) {
+    for (std::size_t j = 0; j < nResources; ++j) {
+      usage(sol[n].id, j) += pb.demands(n.id, j);
+    }
+  }
+
+  for (std::size_t i = 0; i < nParts; ++i) {
+    for (std::size_t j = 0; j < nResources; ++j) {
+      assert (usage(i, j) <= pb.capacities(i, j));
+    }
+  }
 }
 
 SolverOptions get_options(const po::variables_map &vm) {

@@ -135,7 +135,7 @@ void writeHMetis(const Problem &pb, std::ostream &s) {
   }
 }
 
-void reportHelper (
+void hypergraphStatsReportHelper (
     std::ostream &s
   , const std::map<std::size_t, std::size_t> &degreeToCount
   , const std::map<std::size_t, std::size_t> &degreeToWeight
@@ -183,8 +183,7 @@ void reportHelper (
   s << std::endl;
 }
 
-void reportStats(const Problem &pb, std::ostream &s) {
-  const Hypergraph &h = pb.hypergraph;
+void reportHypergraphStats(const Hypergraph &h, std::ostream &s) {
   std::map<std::size_t, std::size_t> degreeToCount;
   std::map<std::size_t, std::size_t> degreeToWeight;
 
@@ -212,7 +211,7 @@ void reportStats(const Problem &pb, std::ostream &s) {
   if (reportWeight) s << ",\tWeight";
   s << std::endl;
 
-  reportHelper(s, degreeToCount, degreeToWeight, reportWeight);
+  hypergraphStatsReportHelper(s, degreeToCount, degreeToWeight, reportWeight);
 
   degreeToCount.clear();
   for (auto n : h.nodes()) {
@@ -224,7 +223,73 @@ void reportStats(const Problem &pb, std::ostream &s) {
   s << "Degree,\tNodes,\tPins";
   s << std::endl;
 
-  reportHelper(s, degreeToCount, degreeToWeight);
+  hypergraphStatsReportHelper(s, degreeToCount, degreeToWeight);
+}
+
+void reportResourcesStats(const Problem &pb, std::ostream &s) {
+  std::size_t nResources = pb.demands.size2();
+  std::size_t nNodes = pb.demands.size1();
+  std::size_t nParts = pb.capacities.size1();
+  assert (nResources == pb.capacities.size2());
+
+  std::vector<Resource> demands(nResources, 0);
+  for (std::size_t i = 0; i < nNodes; ++i) {
+    for (std::size_t j = 0; j < nResources; ++j) {
+      demands[j] += pb.demands(i, j);
+    }
+  }
+  std::vector<Resource> capacities(nResources, 0);
+  for (std::size_t i = 0; i < nParts; ++i) {
+    for (std::size_t j = 0; j < nResources; ++j) {
+      capacities[j] += pb.capacities(i, j);
+    }
+  }
+
+  // Total demand
+  s << "Demands";
+  for (std::size_t j = 0; j < nResources; ++j) {
+    s << "\t" << demands[j];
+  }
+  s << std::endl;
+
+  // Total capacity (%)
+  s << "Capacities ";
+  for (std::size_t j = 0; j < nResources; ++j) {
+    s << "\t" << 100.0 * capacities[j] / demands[j] << "%";
+  }
+  s << std::endl;
+
+  // Number of annoying blocks
+  s << "Huge blocks";
+  for (std::size_t j = 0; j < nResources; ++j) {
+    // Blocks that are difficult to move: defined as half the margin or bigger
+    Resource cutoff = capacities[j] - demands[j];
+    Weight tot = 0;
+    std::size_t cnt = 0;
+    for (std::size_t i = 0; i < nNodes; ++i) {
+      if (pb.demands(i, j) >= 0.5 * cutoff) {
+        tot += pb.demands(i, j);
+        ++cnt;
+      }
+    }
+    std::cout << "\t" << cnt << ": " << 100.0 * tot / demands[j] << "%";
+  }
+  s << std::endl;
+
+  // Size of each partition
+  for (std::size_t i = 0; i < nParts; ++i) {
+    s << "Part " << i;
+    for (std::size_t j = 0; j < nResources; ++j) {
+      s << "\t" << 100.0 * pb.capacities(i, j) / demands[j] << "%";
+    }
+    s << std::endl;
+  }
+  s << std::endl;
+}
+
+void reportStats(const Problem &pb, std::ostream &s) {
+  reportHypergraphStats(pb.hypergraph, s);
+  reportResourcesStats(pb, s);
 }
 
 std::pair <double, double> computeAvgAndDev(const std::vector<int> &costs) {

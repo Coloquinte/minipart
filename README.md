@@ -3,10 +3,10 @@
 Minipart is a solver for the hypergraph partitioning problem.
 
 Hypergraph partitioning is a well-known NP-hard optimization problem.
-It is an important problem for many fields in computer engineering, like electronic circuit design and task allocation in datacenters.
-Minipart is an attempt to bring new algorithms to this field.
+It is a common problem in computer engineering. For example, it is part of the models to optimize electronic circuit design or task allocation for distributed computing.
+Minipart aims at providing an open-source solver and a simple research tool to experiment with.
 
-Minipart is still in its infancy: it is under active development, focused on solution quality and runtime performance.
+Minipart is under active development. It already returns good solutions, but will undergo performance optimizations and tuning on a wider range of problems.
 
 ## Usage
 
