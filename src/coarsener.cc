@@ -204,11 +204,13 @@ std::vector<std::pair<Coarsening, std::vector<Mapping> > > select_pool_coarsenin
     return ret;
   }
 
-  Coarsening blackbox = infer_coarsening_blackbox(pb, pool);
-  //assert (blackbox.nNodesOut() <= using_all.nNodesOut());
-  if (blackbox.nNodesOut() <= target_n_nodes || pool.size() == 1) {
-    ret.emplace_back(blackbox, pool);
-    return ret;
+  if (pool.size() <= 64) {
+    Coarsening blackbox = infer_coarsening_blackbox(pb, pool);
+    //assert (blackbox.nNodesOut() <= using_all.nNodesOut());
+    if (blackbox.nNodesOut() <= target_n_nodes || pool.size() == 1) {
+      ret.emplace_back(blackbox, pool);
+      return ret;
+    }
   }
 
   // If neither is coarse enough use two coarsenings with half the pool each

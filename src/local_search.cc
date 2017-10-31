@@ -2,7 +2,52 @@
 
 #include "queues.h"
 
+#include <functional>
+
 namespace minipart {
+
+typedef std::function<void (IncBipart&, std::minstd_rand&)> Strategy;
+
+class StrategySelector {
+ public:
+  StrategySelector(std::initializer_list<Strategy>, std::vector<double> weights = {});
+  void run(IncBipart &, std::minstd_rand&);
+
+ private:
+  std::vector<Strategy> strategies_;
+  std::vector<double> weights_;
+};
+
+StrategySelector::StrategySelector(std::initializer_list<Strategy> strategies, std::vector<double> weights)
+: strategies_(strategies)
+, weights_(weights) {
+  weights_.resize(strategies_.size(), 1.0);
+}
+
+void StrategySelector::run(IncBipart &inc, std::minstd_rand &rgen) {
+  std::discrete_distribution<> dist(weights_.begin(), weights_.end());
+  int ind = dist(rgen);
+  strategies_[ind](inc, rgen);
+}
+
+class StrategyComposer {
+ public:
+  StrategyComposer(std::initializer_list<Strategy>);
+  void run(IncBipart &, std::minstd_rand&);
+
+ private:
+  std::vector<Strategy> strategies_;
+};
+
+StrategyComposer::StrategyComposer(std::initializer_list<Strategy> strategies)
+: strategies_(strategies) {
+}
+
+void StrategyComposer::run(IncBipart &inc, std::minstd_rand &rgen) {
+  for (auto &strategy : strategies_) {
+    strategy(inc, rgen);
+  }
+}
 
 bool trySwap(IncBipart &inc, Node n1, Node n2) {
   if (n1 == n2) return false;
@@ -67,6 +112,8 @@ void traction_placement_pass(IncBipart &inc, std::minstd_rand &rgen) {
       }
     }
   }
+
+  legalization_pass(inc, rgen);
 }
 
 void greedy_pass(IncBipart &inc, std::minstd_rand &rgen, int passes=3) {
@@ -77,7 +124,7 @@ void greedy_pass(IncBipart &inc, std::minstd_rand &rgen, int passes=3) {
       if (inc.gain(n) >= 0) {
         inc.tryMove(n);
       }
-    }
+    ;}
   }
 }
 
@@ -97,7 +144,8 @@ void positive_gain_pass(IncBipart &inc, std::minstd_rand &rgen) {
 }
 
 template <typename Queue>
-void non_negative_gain_pass(IncBipart &inc, std::minstd_rand &rgen, const int max_zero_gain_moves = 1) {
+void non_negative_gain_pass(IncBipart &inc, std::minstd_rand &rgen) {
+  const int max_zero_gain_moves = 1;
   std::vector<Node> nodes;
   for (Node n : inc.nodes()) {
     if (inc.gain(n) >= 0) nodes.push_back(n);
@@ -121,7 +169,8 @@ void non_negative_gain_pass(IncBipart &inc, std::minstd_rand &rgen, const int ma
 }
 
 template <typename Queue>
-void dual_queue_pass(IncBipart &inc, std::minstd_rand &rgen, const int max_zero_gain_moves = 1) {
+void dual_queue_pass(IncBipart &inc, std::minstd_rand &rgen) {
+  const int max_zero_gain_moves = 1;
   std::vector<Node> nodes;
   for (Node n : inc.nodes()) {
     if (inc.gain(n) >= 0) nodes.push_back(n);
@@ -261,13 +310,14 @@ void HybridPassFunctor<Queue>::drop() {
 }
 
 template <typename Queue>
-void hybrid_pass(IncBipart &inc, std::minstd_rand &rgen, int max_moves_per_probe=1) {
-  HybridPassFunctor<Queue> pass(inc, rgen, max_moves_per_probe);
+void hybrid_pass(IncBipart &inc, std::minstd_rand &rgen) {
+  const int max_zero_gain_moves = 1;
+  HybridPassFunctor<Queue> pass(inc, rgen, max_zero_gain_moves);
   pass.run();
 }
 
 template <typename Queue>
-void probing_pass(IncBipart &inc, const std::vector<Node> &nodes, int max_moves_per_probe) {
+void probing_pass_helper(IncBipart &inc, const std::vector<Node> &nodes, int max_moves_per_probe) {
   Queue q(inc);
   std::vector<Node> trail;
 
@@ -299,7 +349,8 @@ void probing_pass(IncBipart &inc, const std::vector<Node> &nodes, int max_moves_
 }
 
 template <typename Queue>
-void probing_pass(IncBipart &inc, std::minstd_rand &rgen, int max_moves_per_probe) {
+void probing_pass(IncBipart &inc, std::minstd_rand &rgen) {
+  int max_moves_per_probe = 5;
   std::vector<Node> nodes;
   for (Node n : inc.nodes()) {
     bool frontier = false;
@@ -309,7 +360,7 @@ void probing_pass(IncBipart &inc, std::minstd_rand &rgen, int max_moves_per_prob
     if (frontier) nodes.push_back(n);
   }
   std::shuffle(nodes.begin(), nodes.end(), rgen);
-  probing_pass<Queue>(inc, nodes, max_moves_per_probe);
+  probing_pass_helper<Queue>(inc, nodes, max_moves_per_probe);
 }
 
 void move_all(IncBipart &inc, Edge e, const std::vector<char> &dest) {
@@ -321,7 +372,7 @@ void move_all(IncBipart &inc, Edge e, const std::vector<char> &dest) {
   }
 }
 
-void edge_centric_pass(IncBipart &inc, const std::vector<Edge> &edges) {
+void edge_centric_pass_helper(IncBipart &inc, const std::vector<Edge> &edges) {
   std::vector<char> initial;
   for (Edge e : edges) {
     // Try to move the entire edge in both directions
@@ -362,7 +413,7 @@ void edge_centric_pass(IncBipart &inc, std::minstd_rand &rgen) {
     edges.push_back(e);
   }
   std::shuffle(edges.begin(), edges.end(), rgen);
-  edge_centric_pass(inc, edges);
+  edge_centric_pass_helper(inc, edges);
 }
 
 std::vector<Node> select_biggest_nodes(const IncBipart &inc, std::size_t num) {
@@ -379,7 +430,7 @@ std::vector<Node> select_biggest_nodes(const IncBipart &inc, std::size_t num) {
   return ret;
 }
 
-void swap_pass(IncBipart &inc, const std::vector<Node> &nodes) {
+void swap_pass_helper(IncBipart &inc, const std::vector<Node> &nodes) {
   for (Node n1 : nodes) {
     // At least one of the nodes ought to have positive gain
     if (inc.gain(n1) <= 0) continue;
@@ -394,11 +445,12 @@ void swap_pass(IncBipart &inc, const std::vector<Node> &nodes) {
   }
 }
 
-void swap_pass(IncBipart &inc, std::minstd_rand &rgen, std::size_t num = 100) {
+void swap_pass(IncBipart &inc, std::minstd_rand &rgen) {
+  std::size_t num = 100;
   std::vector<Node> nodes = select_biggest_nodes(inc, num);
   std::shuffle(nodes.begin(), nodes.end(), rgen);
 
-  swap_pass(inc, nodes);
+  swap_pass_helper(inc, nodes);
 }
 
 void exhaustive_pass(IncBipart &inc, const std::vector<Node> &nodes) {
@@ -448,16 +500,32 @@ void exhaustive_pass(IncBipart &inc, std::minstd_rand &rgen) {
   exhaustive_pass(inc, nodes);
 }
 
-void place(IncBipart &inc, std::minstd_rand &rgen) {
-  random_placement_pass(inc, rgen);
+void place(IncBipart &inc, std::minstd_rand &rgen, SolverOptions options) {
+  StrategySelector sel ({
+      random_placement_pass
+    , traction_placement_pass<ThresholdQueue<false> >
+    , traction_placement_pass<ThresholdQueue<true> >
+    , traction_placement_pass<BasicQueue<false> >
+    , traction_placement_pass<BasicQueue<true> >
+    , traction_placement_pass<FMQueue<false> >
+  }, options.place_strategies);
+  sel.run(inc, rgen);
 }
 
-void optimize(IncBipart &inc, std::minstd_rand &rgen) {
-  hybrid_pass<PosQueue<> >(inc, rgen);
-  hybrid_pass<PosQueue<> >(inc, rgen);
-  probing_pass<PosQueue<> >(inc, rgen, 5);
-  edge_centric_pass(inc, rgen);
-  swap_pass(inc, rgen);
+void optimize(IncBipart &inc, std::minstd_rand &rgen, SolverOptions options) {
+  StrategySelector sel ({
+      edge_centric_pass
+    , swap_pass
+    , hybrid_pass<PosQueue<true> >
+    , hybrid_pass<PosQueue<false> >
+    , hybrid_pass<FMQueue<true> >
+    , hybrid_pass<FMQueue<false> >
+    , probing_pass<PosQueue<> >
+    , probing_pass<ThresholdQueue<> >
+  }, options.search_strategies);
+  for (int i = 0; i < 5; ++i) {
+    sel.run(inc, rgen);
+  }
 }
 
 } // End namespace minipart

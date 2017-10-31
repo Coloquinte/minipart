@@ -18,6 +18,9 @@ struct SolverOptions {
   std::size_t n_threads;
   std::size_t seed;
   std::size_t verbosity;
+
+  std::vector<double> place_strategies;
+  std::vector<double> search_strategies;
 };
 
 // Main solving function

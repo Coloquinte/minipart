@@ -78,8 +78,8 @@ class IncBipart {
 };
 
 // Basic high-level local search
-void place(IncBipart &inc, std::minstd_rand &rgen);
-void optimize(IncBipart &inc, std::minstd_rand &rgen);
+void place(IncBipart &inc, std::minstd_rand &rgen, SolverOptions options);
+void optimize(IncBipart &inc, std::minstd_rand &rgen, SolverOptions options);
 
 inline IncBipart::IncBipart(const Problem &pb)
 : h_(pb.hypergraph)

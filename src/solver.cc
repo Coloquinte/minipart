@@ -97,7 +97,7 @@ void BipartSolver::place() {
   #pragma omp parallel for num_threads(options_.n_threads) schedule(dynamic, 1)
   for (std::size_t i = range_begin; i < range_end; ++i) {
     IncBipart inc = reused;
-    minipart::place(inc, rgens_->at(i));
+    minipart::place(inc, rgens_->at(i), options_);
     // Only a fixed number of times: placement may actually be difficult and fail
     if (inc.legal()) {
       solution_pool_[i] = inc.mapping();
@@ -117,7 +117,7 @@ void BipartSolver::optimize() {
   for (std::size_t i = 0; i < solution_pool_.size(); ++i) {
     Mapping &m = solution_pool_[i];
     IncBipart inc(pb_, m);
-    minipart::optimize(inc, rgens_->at(i));
+    minipart::optimize(inc, rgens_->at(i), options_);
     m = inc.mapping();
   }
 }

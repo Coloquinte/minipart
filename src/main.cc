@@ -89,6 +89,9 @@ po::options_description getHiddenOptions() {
 
   desc.add_options()("stats", "print problem statistics");
 
+  desc.add_options()("place-strategies",  po::value<std::vector<double> >()->multitoken(), "weights for placement strategy selection");
+  desc.add_options()("search-strategies", po::value<std::vector<double> >()->multitoken(), "weights for local search strategy selection");
+
   return desc;
 }
 
@@ -206,6 +209,10 @@ SolverOptions get_options(const po::variables_map &vm) {
   opt.n_threads = vm["threads"].as<std::size_t>();
   opt.seed      = vm["seed"].as<std::size_t>();
   opt.verbosity = vm["verbose"].as<std::size_t>();
+
+  if (vm.count("place-strategies"))  opt.place_strategies  = vm["place-strategies"].as<std::vector<double> >();
+  if (vm.count("search-strategies")) opt.search_strategies = vm["search-strategies"].as<std::vector<double> >();
+
   return opt;
 }
 
@@ -221,7 +228,7 @@ int main(int argc, char **argv) {
   write_solution(vm, mapping);
 
   if (opt.verbosity >= 1) {
-    std::cout << "Best solution found: " << computeCostBipart(pb.hypergraph, mapping) << std::endl;
+    std::cout << computeCostBipart(pb.hypergraph, mapping) << std::endl;
   }
   return 0;
 }

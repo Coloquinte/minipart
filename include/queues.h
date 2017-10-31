@@ -22,9 +22,16 @@ class BasicQueue;
 template <>
 class BasicQueue<false> {
  public:
+  BasicQueue() {}
+  BasicQueue(IncBipart &) {}
+
   bool empty() const { return d_.empty(); }
   Node top() const { return d_.back(); }
-  void pop() { d_.pop_back(); }
+  Node pop() {
+    Node n = d_.back();
+    d_.pop_back();
+    return n;
+  }
   void push(Node n) { d_.push_back(n); }
   void clear() { d_.clear(); }
 
@@ -35,9 +42,16 @@ class BasicQueue<false> {
 template <>
 class BasicQueue<true> {
  public:
+  BasicQueue() {}
+  BasicQueue(IncBipart &) {}
+
   bool empty() const { return d_.empty(); }
   Node top() const { return d_.front(); }
-  void pop() { d_.pop_front(); }
+  Node pop() {
+    Node n = d_.front();
+    d_.pop_front();
+    return n;
+  }
   void push(Node n) { d_.push_back(n); }
   void clear() { d_.clear(); }
 
