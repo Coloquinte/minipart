@@ -130,16 +130,17 @@ void BipartSolver::coarsen_recurse() {
   auto next_pools = select_pool_coarsenings(pb_, solution_pool_, target_n_nodes, rgens_->at(0));
   solution_pool_.clear();
 
-  for (const std::pair<Coarsening, std::vector<Mapping> > &coarsening_pool : next_pools) {
+  for (std::pair<Coarsening, std::vector<Mapping> > &coarsening_pool : next_pools) {
     const Coarsening &coarsening = coarsening_pool.first;
-    const std::vector<Mapping> &selected = coarsening_pool.second;
+    std::vector<Mapping> &selected = coarsening_pool.second;
     // Apply the coarsening
     Problem c_pb = coarsening(pb_);
     std::vector<Mapping> c_mappings;
-    for (const Mapping &m : selected) {
-      auto c_m = coarsening(m);
-      assert (computeCostBipart(pb_.hypergraph, m) == computeCostBipart(c_pb.hypergraph, c_m));
-      c_mappings.push_back(c_m);
+    for (Mapping &m : selected) {
+      // TODO: do those in parallel
+      c_mappings.emplace_back(coarsening(m));
+      assert (computeCostBipart(pb_.hypergraph, m) == computeCostBipart(c_pb.hypergraph, c_mappings.back()));
+      m = Mapping(); // Release memory early
     }
 
     // Call recursively
@@ -148,9 +149,8 @@ void BipartSolver::coarsen_recurse() {
 
     // Read results back
     for (const Mapping &c_m : coarsened.solution_pool_) {
-      auto m = coarsening.reverse(c_m);
-      assert (computeCostBipart(pb_.hypergraph, m) == computeCostBipart(c_pb.hypergraph, c_m));
-      solution_pool_.push_back(m);
+      solution_pool_.emplace_back(coarsening.reverse(c_m));
+      assert (computeCostBipart(pb_.hypergraph, solution_pool_.back()) == computeCostBipart(c_pb.hypergraph, c_m));
     }
   }
 }

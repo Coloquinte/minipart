@@ -33,7 +33,7 @@ void StrategySelector::run(IncBipart &inc, std::minstd_rand &rgen) {
 class StrategyComposer {
  public:
   StrategyComposer(std::initializer_list<Strategy>);
-  void run(IncBipart &, std::minstd_rand&);
+  void operator()(IncBipart &, std::minstd_rand&);
 
  private:
   std::vector<Strategy> strategies_;
@@ -43,7 +43,7 @@ StrategyComposer::StrategyComposer(std::initializer_list<Strategy> strategies)
 : strategies_(strategies) {
 }
 
-void StrategyComposer::run(IncBipart &inc, std::minstd_rand &rgen) {
+void StrategyComposer::operator()(IncBipart &inc, std::minstd_rand &rgen) {
   for (auto &strategy : strategies_) {
     strategy(inc, rgen);
   }
@@ -101,7 +101,6 @@ void traction_placement_pass(IncBipart &inc, std::minstd_rand &rgen) {
 
   const std::size_t max_moves = 2 * inc.nNodes();
 
-  // TODO: use a FIFO queue to avoid ping-pong
   for (std::size_t i = 0; i < max_moves; ++i) {
     if (inc.legal()) break;
     bool from = inc.overflow(true);
@@ -417,16 +416,25 @@ void edge_centric_pass(IncBipart &inc, std::minstd_rand &rgen) {
 }
 
 std::vector<Node> select_biggest_nodes(const IncBipart &inc, std::size_t num) {
-  std::vector<Node> ret(inc.nodes().begin(), inc.nodes().end());
   // Access the weight matrix for each resource and get the n biggest nodes
+  typedef std::pair<Node, Resource> P;
   const Matrix<Resource> &demands = inc.demands();
-  assert (demands.size1() == inc.nNodes());
+
   // TODO: handle multiple resources
-  std::sort (ret.begin(), ret.end(),
-      [&](Node a, Node b) {
-        return demands(a.id, 0) > demands(b.id, 0);
-      });
-  if (ret.size() > num) ret.resize(num);
+  std::vector<P> nodes;
+  for (Node n : inc.nodes()) {
+    nodes.emplace_back(n, demands(n.id, 0));
+  }
+
+  std::sort (nodes.begin(), nodes.end(),
+      [](P a, P b) { return a.second > b.second; });
+  if (nodes.size() > num) nodes.resize(num);
+
+  std::vector<Node> ret;
+  ret.reserve(num);
+  for (P p : nodes) {
+    ret.push_back(p.first);
+  }
   return ret;
 }
 
@@ -500,6 +508,9 @@ void exhaustive_pass(IncBipart &inc, std::minstd_rand &rgen) {
   exhaustive_pass(inc, nodes);
 }
 
+void empty_pass(IncBipart &inc, std::minstd_rand &rgen) {
+}
+
 void place(IncBipart &inc, std::minstd_rand &rgen, SolverOptions options) {
   StrategySelector sel ({
       random_placement_pass
@@ -513,19 +524,30 @@ void place(IncBipart &inc, std::minstd_rand &rgen, SolverOptions options) {
 }
 
 void optimize(IncBipart &inc, std::minstd_rand &rgen, SolverOptions options) {
-  StrategySelector sel ({
-      edge_centric_pass
-    , swap_pass
-    , hybrid_pass<PosQueue<true> >
+  StrategySelector sel_descent ({
+      hybrid_pass<PosQueue<true> >
     , hybrid_pass<PosQueue<false> >
     , hybrid_pass<FMQueue<true> >
     , hybrid_pass<FMQueue<false> >
+    , non_negative_gain_pass<PosQueue<false> >
+    , non_negative_gain_pass<FMQueue<false> >
+  });
+
+  StrategySelector sel_special ({
+      StrategyComposer({
+        edge_centric_pass
+      , swap_pass})
+    , StrategyComposer({
+        swap_pass
+      , edge_centric_pass})
     , probing_pass<PosQueue<> >
     , probing_pass<ThresholdQueue<> >
-  }, options.search_strategies);
-  for (int i = 0; i < 5; ++i) {
-    sel.run(inc, rgen);
-  }
+    , empty_pass
+  });
+
+  sel_descent.run(inc, rgen);
+  sel_special.run(inc, rgen);
+  sel_descent.run(inc, rgen);
 }
 
 } // End namespace minipart

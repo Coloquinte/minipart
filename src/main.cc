@@ -197,7 +197,10 @@ void check_solution(const Problem &pb, const Mapping &sol) {
 
   for (std::size_t i = 0; i < nParts; ++i) {
     for (std::size_t j = 0; j < nResources; ++j) {
-      assert (usage(i, j) <= pb.capacities(i, j));
+      if (usage(i, j) > pb.capacities(i, j)) {
+        std::cerr << "Illegal solution returned; this is likely to be a bug" << std::endl;
+        exit(1);
+      }
     }
   }
 }

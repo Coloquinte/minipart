@@ -12,8 +12,6 @@
 
 #include "inc_bipart.h"
 
-#include <queue>
-
 namespace minipart {
 
 template <bool FIFO>
@@ -21,6 +19,7 @@ class BasicQueue;
 
 template <>
 class BasicQueue<false> {
+ // Basically a stack
  public:
   BasicQueue() {}
   BasicQueue(IncBipart &) {}
@@ -41,22 +40,27 @@ class BasicQueue<false> {
 
 template <>
 class BasicQueue<true> {
+ // Basically a queue
  public:
-  BasicQueue() {}
-  BasicQueue(IncBipart &) {}
+  BasicQueue() { begin_ = 0; }
+  BasicQueue(IncBipart &) { begin_ = 0; }
 
-  bool empty() const { return d_.empty(); }
-  Node top() const { return d_.front(); }
+  bool empty() const { return begin_ == d_.size(); }
+  Node top() const { return d_[begin_]; }
   Node pop() {
-    Node n = d_.front();
-    d_.pop_front();
+    Node n = d_[begin_++];
+    if (begin_ > d_.size() / 2) { // Half of the space wasted
+      d_.erase(d_.begin(), d_.begin() + begin_);
+      begin_ = 0;
+    }
     return n;
   }
   void push(Node n) { d_.push_back(n); }
-  void clear() { d_.clear(); }
+  void clear() { d_.clear(); begin_ = 0; }
 
  private:
-  std::deque<Node> d_;
+  std::vector<Node> d_;
+  std::size_t begin_;
 };
 
 // Queue that only handles positive and zero gain
