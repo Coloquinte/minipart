@@ -10,6 +10,8 @@ struct Problem {
   Hypergraph hypergraph;
   Matrix<Resource> demands;
   Matrix<Resource> capacities;
+
+  void checkConsistency() const;
 };
 
 struct SolverOptions {
@@ -25,6 +27,7 @@ struct SolverOptions {
 
 // Main solving function
 Mapping solve(const Problem &pb, const SolverOptions &options);
+Mapping bipart_solve(const Problem &pb, const SolverOptions &options);
 
 }  // End namespace minipart
 

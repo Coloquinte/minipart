@@ -17,7 +17,9 @@ SET (SOURCES
   src/io.cc
   src/coarsener.cc
   src/local_search.cc
-  src/solver.cc)
+  src/solver.cc
+  src/problem.cc
+  src/bipart_solver.cc)
 
 add_library(libminipart ${SOURCES})
 

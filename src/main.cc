@@ -22,9 +22,6 @@ void check_parts(std::size_t p) {
   if (p < 2) {
     throw std::runtime_error("Option --parts must be 2 or greater");
   }
-  else if (p > 2) {
-    throw std::runtime_error("Only bipartitioning is supported at this point; other values for option --parts are not available");
-  }
 }
 
 void check_starts(std::size_t p) {
@@ -131,10 +128,6 @@ po::variables_map parse_arguments(int argc, char **argv) {
   else if (!vm.count("hmetis") || vm["hmetis"].as<std::string>().empty()) {
     std::cout << "Missing input file" << std::endl;
     std::cout << desc << std::endl;
-    exit(1);
-  }
-  else if(vm["parts"].as<std::size_t>() != 2) {
-    std::cout << "Only bipartitioning is supported" << std::endl;
     exit(1);
   }
 
