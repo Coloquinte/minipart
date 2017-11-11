@@ -6,10 +6,12 @@
 #include <istream>
 #include <iomanip>
 #include <map>
+#include <bitset>
 
 namespace minipart {
 
 namespace {
+
 std::stringstream getHMetisLine(std::istream &s) {
   // Get rid of comment lines and empty lines
   std::string tmp;
@@ -135,6 +137,7 @@ void writeHMetis(const Problem &pb, std::ostream &s) {
   }
 }
 
+namespace {
 void hypergraphStatsReportHelper (
     std::ostream &s
   , const std::map<std::size_t, std::size_t> &degreeToCount
@@ -232,18 +235,8 @@ void reportResourcesStats(const Problem &pb, std::ostream &s) {
   std::size_t nParts = pb.capacities.size1();
   assert (nResources == pb.capacities.size2());
 
-  std::vector<Resource> demands(nResources, 0);
-  for (std::size_t i = 0; i < nNodes; ++i) {
-    for (std::size_t j = 0; j < nResources; ++j) {
-      demands[j] += pb.demands(i, j);
-    }
-  }
-  std::vector<Resource> capacities(nResources, 0);
-  for (std::size_t i = 0; i < nParts; ++i) {
-    for (std::size_t j = 0; j < nResources; ++j) {
-      capacities[j] += pb.capacities(i, j);
-    }
-  }
+  std::vector<Resource> demands = pb.getTotalDemands();
+  std::vector<Resource> capacities = pb.getTotalCapacities();
 
   // Total demand
   s << "Demands";
@@ -286,27 +279,15 @@ void reportResourcesStats(const Problem &pb, std::ostream &s) {
   }
   s << std::endl;
 }
+}
 
 void reportStats(const Problem &pb, std::ostream &s) {
   reportHypergraphStats(pb.hypergraph, s);
   reportResourcesStats(pb, s);
 }
 
-std::pair <double, double> computeAvgAndDev(const std::vector<int> &costs) {
-  double avg = 0.0;
-  double sqavg = 0.0;
-  for (auto d : costs) {
-    double c = d;
-    avg += c;
-    sqavg += c * c;
-  }
-  avg /= costs.size();
-  sqavg /= costs.size();
-  double std_dev = 100.0 * std::sqrt (sqavg - avg * avg) / avg;
-  return std::make_pair(avg, std_dev);
-}
-
-bool isEdgeCut(const Hypergraph &h, const Mapping &m, Edge e) {
+namespace {
+inline bool isEdgeCutBipart(const Hypergraph &h, const Mapping &m, Edge e) {
   // Used as a bitset
   std::uint8_t used = 0;
   for (auto n : h.nodes(e)) {
@@ -319,7 +300,37 @@ bool isEdgeCut(const Hypergraph &h, const Mapping &m, Edge e) {
   return used == 3;
 }
 
+inline bool isEdgeCut(const Hypergraph &h, const Mapping &m, Edge e) {
+  // TODO: implement large version
+  std::bitset<64> used;
+  for (auto n : h.nodes(e)) {
+    used.set(m[n].id);
+  }
+  return used.count() >= 2;
+}
+
+inline Weight edgeDegree(const Hypergraph &h, const Mapping &m, Edge e) {
+  // TODO: implement large version
+  std::bitset<64> used;
+  for (auto n : h.nodes(e)) {
+    used.set(m[n].id);
+  }
+  return used.count() - 1;
+}
+
+} // End anonymous namespace
+
 std::int64_t computeCostBipart(const Hypergraph &h, const Mapping &m) {
+  std::int64_t ret = 0;
+  for (auto e : h.edges()) {
+    if (isEdgeCutBipart(h, m, e)) {
+      ret += h.weight(e);
+    }
+  }
+  return ret;
+}
+
+std::int64_t computeCostCut(const Hypergraph &h, const Mapping &m) {
   std::int64_t ret = 0;
   for (auto e : h.edges()) {
     if (isEdgeCut(h, m, e)) {
@@ -329,7 +340,25 @@ std::int64_t computeCostBipart(const Hypergraph &h, const Mapping &m) {
   return ret;
 }
 
+std::int64_t computeCostDegree(const Hypergraph &h, const Mapping &m) {
+  std::int64_t ret = 0;
+  for (auto e : h.edges()) {
+    ret += edgeDegree(h, m, e) * h.weight(e);
+  }
+  return ret;
+}
+
 std::vector<int> countCutsBipart(const Hypergraph &h, const std::vector<Mapping> &mappings) {
+  std::vector<int> cut_counts(h.nEdges(), 0);
+  for (Edge e : h.edges()) {
+    for (const Mapping &m : mappings) {
+      cut_counts[e.id] += isEdgeCutBipart(h, m, e);
+    }
+  }
+  return cut_counts;
+}
+
+std::vector<int> countCuts(const Hypergraph &h, const std::vector<Mapping> &mappings) {
   std::vector<int> cut_counts(h.nEdges(), 0);
   for (Edge e : h.edges()) {
     for (const Mapping &m : mappings) {

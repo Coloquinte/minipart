@@ -14,7 +14,7 @@ class BipartSolver {
 
   void place();
   void run();
-  const Mapping &solution();
+  Mapping solution();
 
   const std::vector<Mapping> &mappings() const { return solution_pool_; }
 
@@ -168,19 +168,22 @@ void BipartSolver::sort_pool() {
   }
 }
 
-const Mapping &BipartSolver::solution() {
-  if (solution_pool_.empty()) throw std::runtime_error("No solution found");
+Mapping BipartSolver::solution() {
+  if (solution_pool_.empty()) return Mapping();
   sort_pool();
   return solution_pool_.front();
 }
 
 Mapping bipart_solve(const Problem &pb, const SolverOptions &options) {
+  assert (pb.nParts() == 2);
   BipartSolver s(pb, options);
   s.place();
   for (std::size_t i = 0; i < options.n_cycles; ++i) {
     s.run();
   }
-  return s.solution();
+  Mapping solution = s.solution();
+  assert (pb.is_legal(solution));
+  return solution;
 }
 
 } // End namespace minipart

@@ -125,9 +125,13 @@ po::variables_map parse_arguments(int argc, char **argv) {
     std::cout << desc << std::endl;
     exit(0);
   }
-  else if (!vm.count("hmetis") || vm["hmetis"].as<std::string>().empty()) {
+  if (!vm.count("hmetis") || vm["hmetis"].as<std::string>().empty()) {
     std::cout << "Missing input file" << std::endl;
     std::cout << desc << std::endl;
+    exit(1);
+  }
+  if (vm["parts"].as<std::size_t>() > 64) {
+    std::cout << "The maximum number of partitions is 64" << std::endl;
     exit(1);
   }
 
@@ -140,12 +144,7 @@ Problem parse_graph(const po::variables_map &vm) {
 }
 
 void setup_capacities(const po::variables_map &vm, Problem &pb) {
-  std::vector<int> totals(pb.demands.size2(), 0);
-  for (std::size_t i = 0; i < pb.demands.size1(); ++i) {
-    for (std::size_t j = 0; j < pb.demands.size2(); ++j) {
-      totals[j] += pb.demands(i, j);
-    }
-  }
+  std::vector<int> totals = pb.getTotalDemands();
 
   std::size_t num_parts = vm["parts"].as<std::size_t>();
   double margin = vm["margin"].as<double>();
@@ -172,29 +171,9 @@ void write_solution(const po::variables_map &vm, const Mapping &mapping) {
 }
 
 void check_solution(const Problem &pb, const Mapping &sol) {
-  std::size_t nParts = pb.capacities.size1();
-  std::size_t nResources = pb.capacities.size2();
-
-  Matrix<Resource> usage(nParts, nResources);
-  for (std::size_t i = 0; i < nParts; ++i) {
-    for (std::size_t j = 0; j < nResources; ++j) {
-      usage(i, j) = 0;
-    }
-  }
-
-  for (Node n : pb.hypergraph.nodes()) {
-    for (std::size_t j = 0; j < nResources; ++j) {
-      usage(sol[n].id, j) += pb.demands(n.id, j);
-    }
-  }
-
-  for (std::size_t i = 0; i < nParts; ++i) {
-    for (std::size_t j = 0; j < nResources; ++j) {
-      if (usage(i, j) > pb.capacities(i, j)) {
-        std::cerr << "Illegal solution returned; this is likely to be a bug" << std::endl;
-        exit(1);
-      }
-    }
+  if (!pb.is_legal(sol)) {
+    std::cerr << "Illegal solution returned" << std::endl;
+    exit(1);
   }
 }
 
@@ -224,7 +203,7 @@ int main(int argc, char **argv) {
   write_solution(vm, mapping);
 
   if (opt.verbosity >= 1) {
-    std::cout << computeCostBipart(pb.hypergraph, mapping) << std::endl;
+    std::cout << computeCostCut(pb.hypergraph, mapping) << std::endl;
   }
   return 0;
 }

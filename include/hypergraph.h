@@ -93,7 +93,11 @@ class HypergraphBuilder {
 };
 
 std::int64_t computeCostBipart(const Hypergraph&, const Mapping&);
+std::int64_t computeCostCut(const Hypergraph&, const Mapping&);
+std::int64_t computeCostDegree(const Hypergraph&, const Mapping&);
+
 std::vector<int> countCutsBipart(const Hypergraph &, const std::vector<Mapping> &);
+std::vector<int> countCuts(const Hypergraph &, const std::vector<Mapping> &);
 
 inline Hypergraph::Hypergraph() {
   edges_.emplace_back(0, 0);

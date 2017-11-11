@@ -68,15 +68,17 @@ bool trySwap(IncBipart &inc, Node n1, Node n2) {
 }
 
 void legalization_pass(IncBipart &inc, std::minstd_rand &rgen) {
-  if (inc.legal()) return;
-
-  std::vector<Node> nodes (inc.nodes().begin(), inc.nodes().end());
-  std::shuffle(nodes.begin(), nodes.end(), rgen);
-
-  for (auto n : nodes) {
+  for (int i = 0; i < 4; ++i) {
     if (inc.legal()) break;
-    bool m = inc.mapping(n);
-    if (inc.overflow(m)) inc.move(n);
+
+    std::vector<Node> nodes (inc.nodes().begin(), inc.nodes().end());
+    std::shuffle(nodes.begin(), nodes.end(), rgen);
+
+    for (auto n : nodes) {
+      if (inc.legal()) break;
+      bool m = inc.mapping(n);
+      if (inc.overflow(m)) inc.move(n);
+    }
   }
 }
 
