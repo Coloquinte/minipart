@@ -181,9 +181,7 @@ Mapping bipart_solve(const Problem &pb, const SolverOptions &options) {
   for (std::size_t i = 0; i < options.n_cycles; ++i) {
     s.run();
   }
-  Mapping solution = s.solution();
-  assert (pb.is_legal(solution));
-  return solution;
+  return s.solution();
 }
 
 } // End namespace minipart

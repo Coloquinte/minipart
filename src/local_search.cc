@@ -67,7 +67,7 @@ bool trySwap(IncBipart &inc, Node n1, Node n2) {
   return true;
 }
 
-void legalization_pass(IncBipart &inc, std::minstd_rand &rgen) {
+void greedy_legalization_pass(IncBipart &inc, std::minstd_rand &rgen) {
   for (int i = 0; i < 4; ++i) {
     if (inc.legal()) break;
 
@@ -88,7 +88,7 @@ void random_placement_pass(IncBipart &inc, std::minstd_rand &rgen) {
     if (dist(rgen)) inc.move(n);
   }
 
-  legalization_pass(inc, rgen);
+  greedy_legalization_pass(inc, rgen);
 }
 
 template <typename Queue>
@@ -114,7 +114,7 @@ void traction_placement_pass(IncBipart &inc, std::minstd_rand &rgen) {
     }
   }
 
-  legalization_pass(inc, rgen);
+  greedy_legalization_pass(inc, rgen);
 }
 
 void greedy_pass(IncBipart &inc, std::minstd_rand &rgen, int passes=3) {
@@ -125,7 +125,7 @@ void greedy_pass(IncBipart &inc, std::minstd_rand &rgen, int passes=3) {
       if (inc.gain(n) >= 0) {
         inc.tryMove(n);
       }
-    ;}
+    }
   }
 }
 

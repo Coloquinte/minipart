@@ -199,8 +199,8 @@ int main(int argc, char **argv) {
 
   SolverOptions opt = get_options(vm);
   Mapping mapping = solve(pb, opt);
-  check_solution(pb, mapping);
   write_solution(vm, mapping);
+  check_solution(pb, mapping);
 
   if (opt.verbosity >= 1) {
     std::cout << computeCostCut(pb.hypergraph, mapping) << std::endl;

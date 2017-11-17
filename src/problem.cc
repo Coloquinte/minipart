@@ -10,6 +10,8 @@ void Problem::check_consistency() const {
 }
 
 bool Problem::is_legal(const Mapping &m) const {
+  if (m.nNodes() != nNodes()) return false;
+
   Matrix<Resource> usage = boost::numeric::ublas::zero_matrix<Resource>(nParts(), nResources());
 
   for (Node n : nodes()) {

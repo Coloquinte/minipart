@@ -21,6 +21,7 @@ struct Problem {
   std::vector<Resource> getTotalCapacities() const;
 
   void check_consistency() const;
+
   bool is_legal(const Mapping &) const;
 };
 

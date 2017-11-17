@@ -35,6 +35,8 @@ class BisectionState {
   void bisect(const SolverOptions&);
   Index nCurrentParts() const { return subparts_.size(); }
 
+  void checkConsistency() const;
+
  private:
   std::vector<Problem> extractBisectionProblems(bool degree=false) const;
 
@@ -65,10 +67,11 @@ inline bool isEdgeCut(const Hypergraph &h, const Mapping &m, Edge e) {
 
 void BisectionState::run(const SolverOptions &options) {
   while (nCurrentParts() < pb_.nParts()) {
-    if (options.verbosity >= 1) {
+    if (options.verbosity >= 2) {
       std::cout << "Bisection from " << nCurrentParts() << " partitions" << std::endl;
     }
     bisect(options);
+    checkConsistency();
   }
 }
 
@@ -124,7 +127,7 @@ void BisectionState::bisect(const SolverOptions &options) {
 
   std::vector<Mapping> next_mappings;
   for (Index i = 0; i < nCurrentParts(); ++i) {
-    if (subparts_[i].size() == 1) {
+    if (problems[i].nNodes() == 0 || subparts_[i].size() == 1) {
       next_mappings.emplace_back();
       continue;
     }
@@ -142,12 +145,6 @@ void BisectionState::bisect(const SolverOptions &options) {
     std::vector<Resource> sub_demands = problems[i].getTotalDemands();
     std::vector<Resource> sub_capacities = problems[i].getTotalCapacities();
 
-    std::size_t remaining_levels = 0;
-    for (std::size_t n = subparts_[i].size(); n > 1; n /= 2) {
-      ++remaining_levels;
-    }
-    assert(remaining_levels >= 1);
-
     // Setup the capacities, with some margin depending on the size of the subproblem
     // Size 2 ---> no margin
     for (Index j = 0; j < pb_.nResources(); ++j) {
@@ -156,15 +153,16 @@ void BisectionState::bisect(const SolverOptions &options) {
       if (sub_capacities[j] == sub_demands[j] || sub_demands[j] == 0) continue;
 
       double current_ratio = static_cast<double>(sub_capacities[j]) / sub_demands[j];
-      double new_ratio = 1.0 + (current_ratio - 1.0) / remaining_levels;
+      double new_ratio = 1.0 + (current_ratio - 1.0) * 2.0 / subparts_[i].size();
       assert (current_ratio > 1.0 && new_ratio > 1.0);
       double scaling = new_ratio / current_ratio;
       problems[i].capacities(0, j) = problems[i].capacities(0, j) * scaling;
     }
 
     Mapping solution = bipart_solve(problems[i], options);
-    if (solution.nNodes() != problems[i].nNodes()) {
-      throw std::runtime_error("No solution found at bisection");
+    if (solution.nNodes() == 0) {
+      std::cout << "No bipartitioning solution found" << std::endl;
+      exit(1);
     }
     next_mappings.emplace_back(solution);
   }
@@ -193,8 +191,11 @@ void BisectionState::bisect(const SolverOptions &options) {
   subparts_ = next_subparts;
 }
 
+void BisectionState::checkConsistency() const {
+  assert (m_.nNodes() == pb_.nNodes());
+}
+
 Mapping solve(const Problem &pb, const SolverOptions &options) {
-  //return recursive_bisection(pb, options);
   BisectionState state(pb);
   state.run(options);
 
