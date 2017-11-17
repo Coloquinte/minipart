@@ -1,6 +1,7 @@
 // Copyright (C) 2017 Gabriel Gouvine - All Rights Reserved
 
 #include "solver.h"
+#include "bipart_solver.h"
 
 #include <bitset>
 #include <iostream>
@@ -76,6 +77,7 @@ void BisectionState::run(const SolverOptions &options) {
 }
 
 void BisectionState::bisect(const SolverOptions &options) {
+  // TODO: refactor this monstruosity
   // One problem for each subpart
   std::vector<Problem> problems(subparts_.size());
   const Hypergraph &h = pb_.hypergraph;
@@ -159,12 +161,13 @@ void BisectionState::bisect(const SolverOptions &options) {
       problems[i].capacities(0, j) = problems[i].capacities(0, j) * scaling;
     }
 
-    Mapping solution = bipart_solve(problems[i], options);
-    if (solution.nNodes() == 0) {
-      std::cout << "No bipartitioning solution found" << std::endl;
+    BipartSolver s(problems[i], options);
+    s.run();
+    if (!s.success()) {
+      std::cerr << "No bipartitioning solution found" << std::endl;
       exit(1);
     }
-    next_mappings.emplace_back(solution);
+    next_mappings.emplace_back(s.solution());
   }
 
   Mapping next_mapping(pb_.nNodes());

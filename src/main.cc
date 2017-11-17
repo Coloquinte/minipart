@@ -170,6 +170,25 @@ void write_solution(const po::variables_map &vm, const Mapping &mapping) {
   }
 }
 
+void preprocess(Problem &pb) {
+  bool error = false;
+  for (Node n : pb.nodes()) {
+    bool foundValidPlacement = false;
+    for (std::size_t i = 0; i < pb.nParts(); ++i) {
+      bool valid = true;
+      for (std::size_t j = 0; j < pb.nResources(); ++j) {
+        if (pb.demands(n.id, j) > pb.capacities(i, j)) valid = false;
+      }
+      if (valid) foundValidPlacement = true;
+    }
+    if (!foundValidPlacement) {
+      std::cerr << "Node " << n.id << " cannot be placed on any partition" << std::endl;
+      error = true;
+    }
+  }
+  if (error) exit(1);
+}
+
 void check_solution(const Problem &pb, const Mapping &sol) {
   if (!pb.is_legal(sol)) {
     std::cerr << "Illegal solution returned" << std::endl;
@@ -196,6 +215,7 @@ int main(int argc, char **argv) {
   Problem pb = parse_graph(vm);
   setup_capacities(vm, pb);
   report_inputs(vm, pb);
+  preprocess(pb);
 
   SolverOptions opt = get_options(vm);
   Mapping mapping = solve(pb, opt);

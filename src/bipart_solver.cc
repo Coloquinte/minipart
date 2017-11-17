@@ -1,5 +1,6 @@
 // Copyright (C) 2017 Gabriel Gouvine - All Rights Reserved
 
+#include "bipart_solver.h"
 #include "coarsener.h"
 #include "inc_bipart.h"
 
@@ -7,41 +8,9 @@
 
 namespace minipart {
 
-class BipartSolver {
- public:
-  BipartSolver(Problem pb, SolverOptions options, std::shared_ptr<std::vector<std::minstd_rand> > rgens, std::vector<Mapping> pool, std::size_t level);
-  BipartSolver(Problem pb, SolverOptions options);
-
-  void place();
-  void run();
-  Mapping solution();
-
-  const std::vector<Mapping> &mappings() const { return solution_pool_; }
-
- private:
-  void optimize();
-  void coarsen_recurse();
-  void report();
-  void sort_pool();
-
- private:
-  // Problem to solve
-  Problem pb_;
-  // Options
-  SolverOptions options_;
-  // Coarsening level
-  std::size_t level_;
-  // Multiple random generators for parallel algorithms
-  // Shared between solvers: don't call them in parallel
-  // TODO: do not share state: use Xoroshiro128+ or PCG to have
-  std::shared_ptr<std::vector<std::minstd_rand> > rgens_;
-  // Multiple solutions
-  std::vector<Mapping> solution_pool_;
-  // TODO: adaptive strategies
-};
-
 BipartSolver::BipartSolver(Problem pb, SolverOptions options)
 : BipartSolver(pb, options, nullptr, std::vector<Mapping>(), 0) {
+  assert (pb.nParts() == 2);
   std::seed_seq seq = {options.seed};
   std::vector<std::uint32_t> seeds(options.n_starts);
   seq.generate(seeds.begin(), seeds.end());
@@ -60,6 +29,13 @@ BipartSolver::BipartSolver(Problem pb, SolverOptions options, std::shared_ptr<st
 }
 
 void BipartSolver::run() {
+  place();
+  for (std::size_t i = 0; i < options_.n_cycles; ++i) {
+    run_optim();
+  }
+}
+
+void BipartSolver::run_optim() {
   optimize();
   report();
   coarsen_recurse();
@@ -126,7 +102,6 @@ void BipartSolver::coarsen_recurse() {
   std::size_t target_n_nodes = pb_.hypergraph.nNodes() * 0.8;
   if (target_n_nodes < 20) return;
 
-  sort_pool();
   auto next_pools = select_pool_coarsenings(pb_, solution_pool_, target_n_nodes, rgens_->at(0));
   solution_pool_.clear();
 
@@ -145,7 +120,7 @@ void BipartSolver::coarsen_recurse() {
 
     // Call recursively
     BipartSolver coarsened(c_pb, options_, rgens_, c_mappings, level_+1);
-    coarsened.run();
+    coarsened.run_optim();
 
     // Read results back
     for (const Mapping &c_m : coarsened.solution_pool_) {
@@ -169,19 +144,13 @@ void BipartSolver::sort_pool() {
 }
 
 Mapping BipartSolver::solution() {
-  if (solution_pool_.empty()) return Mapping();
+  if (solution_pool_.empty()) throw std::runtime_error("No solution found");
   sort_pool();
   return solution_pool_.front();
 }
 
-Mapping bipart_solve(const Problem &pb, const SolverOptions &options) {
-  assert (pb.nParts() == 2);
-  BipartSolver s(pb, options);
-  s.place();
-  for (std::size_t i = 0; i < options.n_cycles; ++i) {
-    s.run();
-  }
-  return s.solution();
+bool BipartSolver::success() const {
+  return !solution_pool_.empty();
 }
 
 } // End namespace minipart

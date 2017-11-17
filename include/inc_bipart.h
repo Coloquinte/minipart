@@ -17,6 +17,7 @@ class IncBipart {
  public:
   IncBipart(const Problem &pb);
   IncBipart(const Problem &pb, const Mapping &);
+  void reset(const Mapping &);
 
   std::size_t nNodes() const { return h_.nNodes(); }
   std::size_t nEdges() const { return h_.nEdges(); }
@@ -94,6 +95,11 @@ inline IncBipart::IncBipart(const Problem &pb, const Mapping &m)
 , mapping_(m)
 , demands_ (pb.demands)
 , capacities_ (pb.capacities) {
+  init();
+}
+
+inline void IncBipart::reset(const Mapping &m) {
+  mapping_ = m;
   init();
 }
 
