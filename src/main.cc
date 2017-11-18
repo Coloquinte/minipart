@@ -24,6 +24,12 @@ void check_parts(std::size_t p) {
   }
 }
 
+void check_objective(std::string obj) {
+  if (obj != "cut" && obj!= "degree") {
+    throw std::runtime_error("Option --objective must be \"cut\" ot \"degree\"");
+  }
+}
+
 void check_starts(std::size_t p) {
   if (p == 0) {
     throw std::runtime_error("Option --starts must be 1 or greater");
@@ -59,6 +65,10 @@ po::options_description getOptions() {
   desc.add_options()("parts", po::value<std::size_t>()->default_value(2u)
       ->notifier(check_parts),
       "number of partitions");
+
+  desc.add_options()("objective", po::value<std::string>()->default_value("cut")
+      ->notifier(check_objective),
+      "objective cost function");
 
   desc.add_options()("starts", po::value<std::size_t>()->default_value(64)
       ->notifier(check_starts),
@@ -202,6 +212,7 @@ SolverOptions get_options(const po::variables_map &vm) {
   opt.n_cycles  = vm["v-cycles"].as<std::size_t>();
   opt.n_threads = vm["threads"].as<std::size_t>();
   opt.seed      = vm["seed"].as<std::size_t>();
+  opt.soed_objective = vm["objective"].as<std::string>() == "degree";
   opt.verbosity = vm["verbose"].as<std::size_t>();
 
   if (vm.count("place-strategies"))  opt.place_strategies  = vm["place-strategies"].as<std::vector<double> >();
@@ -223,7 +234,9 @@ int main(int argc, char **argv) {
   check_solution(pb, mapping);
 
   if (opt.verbosity >= 1) {
-    std::cout << computeCostCut(pb.hypergraph, mapping) << std::endl;
+    std::cout << computeCostCut(pb.hypergraph, mapping);
+    if (pb.nParts() > 2) std::cout << " " << computeCostDegree(pb.hypergraph, mapping);
+    std::cout << std::endl;
   }
   return 0;
 }

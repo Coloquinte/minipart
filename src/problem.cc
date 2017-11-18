@@ -4,6 +4,25 @@
 
 namespace minipart {
 
+namespace {
+std::vector<Resource> computeTotal(const Matrix<Resource> &mat) {
+  std::vector<int> totals(mat.size2(), 0);
+  for (std::size_t i = 0; i < mat.size1(); ++i) {
+    for (std::size_t j = 0; j < mat.size2(); ++j) {
+      totals[j] += mat(i, j);
+    }
+  }
+  return totals;
+}
+}
+
+std::vector<Resource> Problem::getTotalDemands() const {
+  return computeTotal(demands);
+}
+std::vector<Resource> Problem::getTotalCapacities() const {
+  return computeTotal(capacities);
+}
+
 void Problem::check_consistency() const {
   if (demands.size1() != hypergraph.nNodes()) abort();
   if (demands.size2() != capacities.size2()) abort();

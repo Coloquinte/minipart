@@ -16,6 +16,7 @@ struct Problem {
   std::size_t nResources() const { return capacities.size2(); }
 
   Range<Node> nodes() const { return hypergraph.nodes(); }
+  Range<Part> parts() const { return Range<Part>(Part(0), Part(nParts())); }
 
   std::vector<Resource> getTotalDemands() const;
   std::vector<Resource> getTotalCapacities() const;
@@ -31,6 +32,7 @@ struct SolverOptions {
   std::size_t n_threads;
   std::size_t seed;
   std::size_t verbosity;
+  bool soed_objective;
 
   std::vector<double> place_strategies;
   std::vector<double> search_strategies;

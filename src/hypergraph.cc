@@ -22,6 +22,7 @@ void Hypergraph::finalize() {
   // Get the number of Edges for each node
   for (E e : edges()) {
     for (N n : nodes(e)) {
+      assert (n.id < nNodes());
       ++node_limits_[n.id+2];
     }
   }
