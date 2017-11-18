@@ -615,12 +615,7 @@ void optimize(IncBipart &inc, std::minstd_rand &rgen, SolverOptions options) {
   });
 
   StrategySelector sel_special ({
-      StrategyComposer({
-        edge_centric_pass
-      , swap_pass})
-    , StrategyComposer({
-        swap_pass
-      , edge_centric_pass})
+      swap_pass
     , probing_pass<PosQueue<> >
     , probing_pass<ThresholdQueue<> >
     , empty_pass
