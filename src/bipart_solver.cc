@@ -143,6 +143,11 @@ void BipartSolver::sort_pool() {
   }
 }
 
+void BipartSolver::addInitialSolution(const Mapping &m) {
+  assert (pb_.is_legal(m));
+  solution_pool_.push_back(m);
+}
+
 Mapping BipartSolver::solution() {
   if (solution_pool_.empty()) throw std::runtime_error("No solution found");
   sort_pool();

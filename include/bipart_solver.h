@@ -10,6 +10,7 @@ class BipartSolver {
  public:
   BipartSolver(Problem pb, SolverOptions options);
 
+  void addInitialSolution(const Mapping &);
   void run();
 
   Mapping solution();
