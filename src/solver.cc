@@ -63,6 +63,7 @@ inline bool isEdgeCut(const Hypergraph &h, const Mapping &m, Edge e) {
 }
 
 void BisectionState::run() {
+  // TODO: initial check that we have a feasible solution with a global bin packing
   while (nCurrentParts() < pb_.nParts()) {
     if (options_.verbosity >= 2) {
       std::cout << "Bisection from " << nCurrentParts() << " partitions" << std::endl;
@@ -104,7 +105,28 @@ void BisectionState::doBisection() {
 
 void BisectionState::legalizeBisection() {
   // Run a bin-packing pass on all pairs to get a legal placement
-  // TODO
+  // Then if illegal pairs still exist make legalize 4, 8, 16... parts at a time
+  std::vector<char> illegalSubpart(nCurrentParts(), true);
+  for (unsigned step = 2; step < 2*nCurrentParts(); step *= 2) {
+    for (Index i = 0; i < nCurrentParts(); i += step) {
+      std::vector<Index> subpartsToLegalize;
+      bool needsLegalization = false;
+      for (unsigned j = i; j < i + step && j < nCurrentParts(); ++j) {
+        needsLegalization |= illegalSubpart[j];
+        subpartsToLegalize.push_back(j);
+      }
+      if (!needsLegalization) continue;
+      bool success = legalizePartitions(subpartsToLegalize);
+      for (unsigned j = i; j < i + step && j < nCurrentParts(); ++j) {
+        illegalSubpart[j] = !success;
+      }
+    }
+  }
+  for (bool illegal : illegalSubpart) {
+    if (!illegal) continue;
+    std::cerr << "No legal solution found" << std::endl;
+    exit(1);
+  }
 }
 
 void BisectionState::optimizeBisection() {
@@ -123,8 +145,8 @@ void BisectionState::redoBisection(Index i, Index j) {
 
   // Run bipartitioning
   BipartSolver s(bisection.problem, options_);
-  // TODO: use initial legal solution
-  //s.addInitialSolution(bisection.mapping);
+  // Use initial legal solution
+  s.addInitialSolution(bisection.mapping);
   s.run();
   if (!s.success()) {
     std::cerr << "No bipartitioning solution found" << std::endl;
@@ -146,11 +168,63 @@ void BisectionState::redoBisection(Index i, Index j) {
   }
 }
 
-bool BisectionState::legalizePartitions(const std::vector<Index> &parts) {
+bool BisectionState::legalizePartitions(const std::vector<Index> &subparts) {
+  checkConsistency();
   // Get the nodes
+  typedef std::pair<Node, Resource> P;
+
+  std::vector<P> wNodes;
+  for (Index sp : subparts) {
+    for (Node n : part_to_nodes_[sp]) wNodes.emplace_back(n, pb_.demands(n.id, 0));
+  }
+
+  // TODO: handle multiple resources
+  std::sort (wNodes.begin(), wNodes.end(),
+      [](P a, P b) { return a.second > b.second; });
+
+  std::vector<Node> nodes;
+  for (P p : wNodes) nodes.push_back(p.first);
+
+  std::vector<std::vector<Node> > result(subparts.size());
+
   // Get the resources
+  Matrix<Resource> capacities = boost::numeric::ublas::zero_matrix<Resource>(subparts.size(), pb_.nResources());
+  for (Index i = 0; i < subparts.size(); ++i) {
+    for (Part p : subparts_[subparts[i]]) {
+      for (unsigned j = 0; j < pb_.nResources(); ++j) {
+        capacities(i, j) += pb_.capacities(p.id, j);
+      }
+    }
+  }
+
+  Matrix<Resource> left = capacities;
+
   // Run a greedy bin packing, biggest nodes first
-  // Return success
+  for (Node n : nodes) {
+    bool placed = false;
+    for (unsigned i = 0; !placed && i < capacities.size1(); ++i) {
+      bool canPlace = true;
+      for (unsigned j = 0; j < pb_.nResources(); ++j) {
+        if (pb_.demands(n.id, j) > left(i, j)) canPlace = false;
+      }
+      if (canPlace) {
+        for (unsigned j = 0; j < pb_.nResources(); ++j) {
+           left(i, j) -= pb_.demands(n.id, j);
+           result[i].push_back(n);
+        }
+        placed = true;
+      }
+    }
+    if (!placed) {
+      return false;
+    }
+  }
+
+  // Update the solution
+  for (Index i = 0; i < subparts.size(); ++i) {
+    part_to_nodes_[subparts[i]] = result[i];
+  }
+
   return true;
 }
 
@@ -219,7 +293,7 @@ BisectionState::BisectionProblem BisectionState::getBisectionProblem(Index i, In
 }
 
 void BisectionState::checkConsistency() const {
-  // TODO
+  assert (part_to_nodes_.size() == subparts_.size());
 }
 
 Mapping BisectionState::mapping() const {
