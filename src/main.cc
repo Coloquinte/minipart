@@ -96,9 +96,6 @@ po::options_description getHiddenOptions() {
 
   desc.add_options()("stats", "print problem statistics");
 
-  desc.add_options()("place-strategies",  po::value<std::vector<double> >()->multitoken(), "weights for placement strategy selection");
-  desc.add_options()("search-strategies", po::value<std::vector<double> >()->multitoken(), "weights for local search strategy selection");
-
   return desc;
 }
 
@@ -214,9 +211,6 @@ SolverOptions get_options(const po::variables_map &vm) {
   opt.seed      = vm["seed"].as<std::size_t>();
   opt.soed_objective = vm["objective"].as<std::string>() == "degree";
   opt.verbosity = vm["verbose"].as<std::size_t>();
-
-  if (vm.count("place-strategies"))  opt.place_strategies  = vm["place-strategies"].as<std::vector<double> >();
-  if (vm.count("search-strategies")) opt.search_strategies = vm["search-strategies"].as<std::vector<double> >();
 
   return opt;
 }

@@ -202,6 +202,7 @@ bool BisectionState::legalizePartitions(const std::vector<Index> &subparts) {
   // Run a greedy bin packing, biggest nodes first
   for (Node n : nodes) {
     bool placed = false;
+    // TODO: pick the most "balanced" partition
     for (unsigned i = 0; !placed && i < capacities.size1(); ++i) {
       bool canPlace = true;
       for (unsigned j = 0; j < pb_.nResources(); ++j) {

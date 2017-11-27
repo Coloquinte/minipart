@@ -33,9 +33,6 @@ struct SolverOptions {
   std::size_t seed;
   std::size_t verbosity;
   bool soed_objective;
-
-  std::vector<double> place_strategies;
-  std::vector<double> search_strategies;
 };
 
 // Main solving function

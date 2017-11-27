@@ -1,7 +1,6 @@
 // Copyright (C) 2017 Gabriel Gouvine - All Rights Reserved
 
 #include "queues.h"
-#include "bin_packing.h"
 
 #include <functional>
 
@@ -84,20 +83,6 @@ void greedy_legalization_pass(IncBipart &inc, std::minstd_rand &rgen) {
   }
 }
 
-void packing_placement_pass(IncBipart &inc, std::minstd_rand &rgen) {
-  int iterations = 2;
-  for (int i = 0; i < iterations; ++i) {
-    if (inc.legal()) break;
-
-    BinPackingSolver s(inc.demands(), inc.capacities());
-    s.run(rgen);
-    if (s.success()) {
-      inc.reset(s.mapping());
-      assert (inc.legal());
-    }
-  }
-}
-
 void random_placement_pass(IncBipart &inc, std::minstd_rand &rgen) {
   Mapping m(inc.nNodes());
   std::bernoulli_distribution dist;
@@ -107,7 +92,6 @@ void random_placement_pass(IncBipart &inc, std::minstd_rand &rgen) {
   inc.reset(m);
 
   greedy_legalization_pass(inc, rgen);
-  packing_placement_pass(inc, rgen);
 }
 
 template <typename Queue>
@@ -134,7 +118,6 @@ void traction_placement_pass(IncBipart &inc, std::minstd_rand &rgen) {
   }
 
   greedy_legalization_pass(inc, rgen);
-  packing_placement_pass(inc, rgen);
 }
 
 void greedy_pass(IncBipart &inc, std::minstd_rand &rgen, int passes=3) {
@@ -541,7 +524,7 @@ void place(IncBipart &inc, std::minstd_rand &rgen, SolverOptions options) {
     , traction_placement_pass<BasicQueue<false> >
     , traction_placement_pass<BasicQueue<true> >
     , traction_placement_pass<FMQueue<false> >
-  }, options.place_strategies);
+  });
   sel.run(inc, rgen);
 }
 
