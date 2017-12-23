@@ -46,18 +46,22 @@ Problem Coarsening::operator() (const Problem &pb) const {
   ret.capacities = pb.capacities;
 
   // Coarsen and simplify the hypergraph
-  HypergraphBuilder b(nNodesOut());
+  HypergraphBuilder hb(nNodesOut());
   std::vector<Node> nodes;
   for (Edge e : pb.hypergraph.edges()) {
     for (Node n : pb.hypergraph.nodes(e)) {
       nodes.push_back(m_[n.id]);
     }
-    b.addEdge(nodes.begin(), nodes.end(), pb.hypergraph.weight(e));
+    hb.addEdge(nodes.begin(), nodes.end(), pb.hypergraph.weight(e));
     nodes.clear();
   }
-  b.vectorize();
-  ret.hypergraph = b;
+  for (auto e : pb.hypergraph.edges2()) {
+    // TODO: use addEdge2 directly and include it in the vectorization
+    hb.addEdge({m_[e.source.id], m_[e.target.id]}, e.weight);
+  }
+  hb.vectorize();
 
+  ret.hypergraph = hb;
   return ret;
 }
 
@@ -92,8 +96,11 @@ bool mappings_are_bipart(const std::vector<Mapping> &mappings) {
   }
   return ret;
 }
+
 Coarsening infer_coarsening_blackbox(const Problem &pb, const std::vector<Mapping> &mappings) {
   // Coarsen nodes that are always together in the same partition
+  // TODO: make it faster and generalize to non-bipartitioning
+  assert (mappings_are_bipart(mappings));
   assert (mappings.size() <= 64);
 
   std::vector<std::uint64_t> placements(mappings.front().nNodes(), 0);
@@ -126,9 +133,6 @@ Coarsening infer_coarsening_connected(const Problem &pb, const std::vector<Mappi
 
   // Coarsen edges that are never cut
   std::vector<int> cuts = countCutsBipart(h, mappings);
-
-  //std::vector<Index> ids(h.nNodes(), 0);
-  //Index cur_id = 0;
   Coarsening ret(h.nNodes(), 0);
 
   // Typical DFS for connected components
@@ -150,6 +154,7 @@ Coarsening infer_coarsening_connected(const Problem &pb, const std::vector<Mappi
       node_visited[v.id] = true;
       ret[v] = o;
 
+      // Push all neighbours on the stack
       for (Edge e : h.edges(v)) {
         // This avoids quadratic complexity
         if (edge_visited[e.id]) continue;
@@ -161,6 +166,17 @@ Coarsening infer_coarsening_connected(const Problem &pb, const std::vector<Mappi
         for (Node s : h.nodes(e)) {
           nodes_to_visit.push_back(s);
         }
+      }
+
+      // Same for 2-edges
+      for (auto e : h.edges2(v)) {
+        Node s = e.target;
+        bool cut = false;
+        for (const Mapping &m : mappings) {
+          if (m[s] != m[v]) cut = true;
+        }
+        if (cut) continue;
+        nodes_to_visit.push_back(s);
       }
     }
 
@@ -194,7 +210,6 @@ std::pair<Coarsening, std::vector<Mapping> > select_for_coarsening(const Problem
 //    * Sharing --> less work to do; more information on what's worth coarsening
 
 std::vector<std::pair<Coarsening, std::vector<Mapping> > > select_pool_coarsenings(const Problem &pb, const std::vector<Mapping> &pool, std::size_t target_n_nodes, std::minstd_rand &rgen) {
-  assert (mappings_are_bipart(pool));
   std::vector<std::pair<Coarsening, std::vector<Mapping> > > ret;
 
   // Try several techniques until we have something good enough
@@ -204,6 +219,7 @@ std::vector<std::pair<Coarsening, std::vector<Mapping> > > select_pool_coarsenin
     return ret;
   }
 
+  // Pure blackbox
   if (pool.size() <= 64) {
     Coarsening blackbox = infer_coarsening_blackbox(pb, pool);
     //assert (blackbox.nNodesOut() <= using_all.nNodesOut());

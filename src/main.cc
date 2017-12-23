@@ -95,6 +95,7 @@ po::options_description getHiddenOptions() {
   po::options_description desc("Hidden options");
 
   desc.add_options()("stats", "print problem statistics");
+  desc.add_options()("export-hmetis", po::value<std::string>(), "export to hmetis format");
 
   return desc;
 }
@@ -147,7 +148,12 @@ po::variables_map parse_arguments(int argc, char **argv) {
 
 Problem parse_graph(const po::variables_map &vm) {
   std::ifstream hf(vm["hmetis"].as<std::string>());
-  return readHMetis(hf);
+  Problem ret = readHMetis(hf);
+  if (vm.count("export-hmetis")) {
+    std::ofstream of(vm["export-hmetis"].as<std::string>());
+    writeHMetis(ret, of);
+  }
+  return ret;
 }
 
 void setup_capacities(const po::variables_map &vm, Problem &pb) {
@@ -166,6 +172,7 @@ void setup_capacities(const po::variables_map &vm, Problem &pb) {
 
 void report_inputs(const po::variables_map &vm, Problem &pb) {
   if (vm.count("stats")) reportStats(pb, std::cout);
+  pb.check_consistency();
 }
 
 void write_solution(const po::variables_map &vm, const Mapping &mapping) {

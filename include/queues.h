@@ -203,8 +203,11 @@ class FMQueue {
     max_gain_ = 0;
     for (Node n : inc.nodes()) {
       Weight loc_gain = 0;
-      for (Edge e : inc.edges(n)) {
+      for (Edge e : inc.hypergraph().edges(n)) {
         loc_gain += inc.hypergraph().weight(e);
+      }
+      for (auto e : inc.hypergraph().edges2(n)) {
+        loc_gain += e.weight;
       }
       max_gain_ = std::max(loc_gain, max_gain_);
     }

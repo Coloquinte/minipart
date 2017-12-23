@@ -33,10 +33,12 @@ BOOST_AUTO_TEST_CASE(hypergraph) {
   Problem copied = readHMetis(s, false);
   BOOST_CHECK_EQUAL (pb.hypergraph.nNodes(), copied.hypergraph.nNodes());
   BOOST_CHECK_EQUAL (pb.hypergraph.nEdges(), copied.hypergraph.nEdges());
-  BOOST_CHECK_EQUAL (pb.hypergraph.nPins(),  copied.hypergraph.nPins());
   for (auto e : pb.hypergraph.edges()) {
-    BOOST_CHECK_EQUAL (pb.hypergraph.nodes(e),  copied.hypergraph.nodes(e));
-    BOOST_CHECK_EQUAL (pb.hypergraph.weight(e),  copied.hypergraph.weight(e));
+    BOOST_CHECK_EQUAL (pb.hypergraph.nodes(e), copied.hypergraph.nodes(e));
+    BOOST_CHECK_EQUAL (pb.hypergraph.weight(e), copied.hypergraph.weight(e));
+  }
+  for (auto n : pb.hypergraph.nodes()) {
+    BOOST_CHECK_EQUAL (pb.hypergraph.edges2(n).size(), copied.hypergraph.edges2(n).size());
   }
 
   BOOST_CHECK_EQUAL (pb.demands.size1(), copied.demands.size1());

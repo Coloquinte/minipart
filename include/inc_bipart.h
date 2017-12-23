@@ -158,6 +158,10 @@ inline Weight IncBipart::initCost() const {
     bool cut = (cnt[0] != 0) && (cnt[1] != 0);
     ret += h_.weight(e) * cut;
   }
+  for (auto e : h_.edges2()) {
+    bool cut = (mapping(e.source) != mapping(e.target));
+    ret += e.weight * cut;
+  }
   return ret;
 }
 
@@ -171,6 +175,10 @@ inline std::vector<Weight> IncBipart::initGains() const {
       CounterPair cnt = edgeState_[e.id];
       g += (cnt[from] == 1) * h_.weight(e);
       g -= (cnt[to]   == 0) * h_.weight(e);
+    }
+    for (auto e : h_.edges2(n)) {
+      bool cut = mapping(n) != mapping(e.target);
+      g += (2 * cut - 1) * e.weight;
     }
     ret[n.id] = g;
   }
@@ -197,8 +205,11 @@ inline void IncBipart::move(Node n, const F &onGainIncrease) {
   ++moves_;
   bool from = mapping(n);
   bool to = !from;
+
+  // Update gain
   this->cost_ -= gains_[n.id];
   gains_[n.id] = -gains_[n.id];
+
   for (auto e : h_.edges(n)) {
     CounterPair &cnt = this->edgeState_[e.id];
     --cnt[from];
@@ -231,6 +242,18 @@ inline void IncBipart::move(Node n, const F &onGainIncrease) {
         assert (o != n);
         gains_[o.id] -= h_.weight(e);
       }
+    }
+  }
+
+  for (auto e : h_.edges2(n)) {
+    Node o = e.target;
+    bool cut = mapping(o) != from;
+    if (cut) {
+      gains_[o.id] -= 2 * e.weight;
+    }
+    else {
+      gains_[o.id] += 2 * e.weight;
+      onGainIncrease(o, gains_[o.id]);
     }
   }
 

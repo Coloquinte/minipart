@@ -8,20 +8,21 @@
 namespace minipart {
 
 void Hypergraph::finalize() {
+  // Finalize large edges
   edges_.shrink_to_fit();
   edge_pins_.shrink_to_fit();
 
   /*
    * Create the data for the nodes
-   * We use _nodes for intermediate computations
+   * We use nodes_limits_ for intermediate computations
    */
 
   node_limits_.assign(nNodes()+2, 0);
   node_pins_.resize(edge_pins_.size());
 
   // Get the number of Edges for each node
-  for (E e : edges()) {
-    for (N n : nodes(e)) {
+  for (Edge e : edges()) {
+    for (Node n : nodes(e)) {
       assert (n.id < nNodes());
       ++node_limits_[n.id+2];
     }
@@ -29,13 +30,28 @@ void Hypergraph::finalize() {
 
   std::partial_sum(node_limits_.begin(), node_limits_.end(), node_limits_.begin());
 
-  for (E e : edges()) {
-    for (N n : nodes(e)) {
+  for (Edge e : edges()) {
+    for (Node n : nodes(e)) {
       node_pins_[node_limits_[n.id+1]++] = e;
     }
   }
-
   node_limits_.pop_back();
+
+  // Finalize 2-Edges
+  node_limits2_.assign(nNodes()+2, 0);
+  node_pins2_.resize(2 * edge_pins2_.size());
+  for (auto e : edge_pins2_) {
+    ++node_limits2_[e.source.id+2];
+    ++node_limits2_[e.target.id+2];
+  }
+
+  std::partial_sum(node_limits2_.begin(), node_limits2_.end(), node_limits2_.begin());
+
+  for (auto e : edge_pins2_) {
+      node_pins2_[node_limits2_[e.source.id+1]++] = {e.target, e.weight};
+      node_pins2_[node_limits2_[e.target.id+1]++] = {e.source, e.weight};
+  }
+  node_limits2_.pop_back();
 }
 
 void Hypergraph::checkConsistency() const {
@@ -57,20 +73,20 @@ void Hypergraph::checkLimits() const {
   }
 
   assert (node_limits_.front() == (Index) 0);
-  assert (node_limits_.back() == (Index) nPins());
+  assert (node_limits_.back() == (Index) edge_pins_.size());
 }
 
 void Hypergraph::checkNodeToEdges() const {
   std::vector<std::unordered_set<Index> > nodeToEdges(nNodes());
 
-  for (N n : nodes()) {
-    for (E e : edges(n)) {
+  for (Node n : nodes()) {
+    for (Edge e : edges(n)) {
       nodeToEdges[n.id].insert(e.id);
     }
   }
 
-  for (E e : edges()) {
-    for (N n : nodes(e)) {
+  for (Edge e : edges()) {
+    for (Node n : nodes(e)) {
       assert (nodeToEdges[n.id].count(e.id) != 0);
     }
   }
@@ -78,19 +94,23 @@ void Hypergraph::checkNodeToEdges() const {
 
 void Hypergraph::checkUniquePins() const {
   std::unordered_set<Index> pins;
-  for (E e : edges()) {
+  for (Edge e : edges()) {
     pins.clear();
-    for (N n : nodes(e)) {
+    for (Node n : nodes(e)) {
       assert (pins.count(n.id) == 0);
       pins.insert(n.id);
-      assert (n.id >= 0);
       assert (n.id < (Index) nNodes());
     }
   }
 
-  for (N n : nodes()) {
+  for (auto e : edges2()) {
+    assert (e.source.id < (Index) nNodes());
+    assert (e.target.id < (Index) nNodes());
+  }
+
+  for (Node n : nodes()) {
     pins.clear();
-    for (E e : edges(n)) {
+    for (Edge e : edges(n)) {
       assert (pins.count(e.id) == 0);
       pins.insert(e.id);
       assert (e.id >= 0);
@@ -117,6 +137,7 @@ void HypergraphBuilder::finalize() {
       ret.edges_.emplace_back(ret.edge_pins_.size(), weight(edge));
     }
   }
+  ret.edge_pins2_ = edge_pins2_;
   std::swap(*this, ret);
 }
 
@@ -133,31 +154,29 @@ void HypergraphBuilder::vectorize() {
     assert (std::is_sorted(nodes(e).begin(), nodes(e).end()));
   }
 
-  // Get identical edges together
-  for (Index sz = 2; sz < size_to_edges.size(); ++sz) {
-    auto compare_edges = [&](Edge a, Edge b) -> bool {
+  // Merge identical edges
+  HypergraphBuilder ret(nNodes());
+  for (Index sz = 3; sz < size_to_edges.size(); ++sz) {
+    const std::vector<Edge> &v = size_to_edges[sz];
+    if (v.empty()) continue;
+
+    auto edges_less = [&](Edge a, Edge b) -> bool {
       auto b1 = nodes(a).begin();
       auto b2 = nodes(b).begin();
       return std::lexicographical_compare(b1, b1+sz, b2, b2+sz);
     };
-    std::sort(size_to_edges[sz].begin(), size_to_edges[sz].end(), compare_edges);
-  }
+    std::sort(size_to_edges[sz].begin(), size_to_edges[sz].end(), edges_less);
 
-  // Merge identical edges
-  HypergraphBuilder ret(nNodes());
-  for (Index sz = 2; sz < size_to_edges.size(); ++sz) {
-    const std::vector<Edge> &v = size_to_edges[sz];
-    if (v.empty()) continue;
-
-    auto compare_edges = [&](Edge a, Edge b) -> bool {
+    auto edges_equal = [&](Edge a, Edge b) -> bool {
       auto b1 = nodes(a).begin();
       auto b2 = nodes(b).begin();
       return std::equal(b1, b1+sz, b2, b2+sz);
     };
+
     Edge cur = v[0];
     Weight cur_weight = weight(cur);
     for (Index j = 1; j < v.size(); ++j) {
-      if (!compare_edges(cur, v[j])) {
+      if (!edges_equal(cur, v[j])) {
         auto b = nodes(cur).begin();
         ret.addEdge(b, b+sz, cur_weight);
         cur = v[j];
@@ -169,6 +188,32 @@ void HypergraphBuilder::vectorize() {
     }
     auto b = nodes(cur).begin();
     ret.addEdge(b, b+sz, cur_weight);
+  }
+
+  for (Edge e : size_to_edges[2]) {
+    addEdge2(nodes(e)[0], nodes(e)[1], weight(e));
+  }
+  auto edges2_less = [](Edge2Data a, Edge2Data b) -> bool {
+    return a.source < b.source
+        || (a.source == b.source && a.target < b.target);
+  };
+  std::sort(edge_pins2_.begin(), edge_pins2_.end(), edges2_less);
+  auto edges2_equal = [](Edge2Data a, Edge2Data b) -> bool {
+    return a.source == b.source && a.target == b.target;
+  };
+
+  if (!edge_pins2_.empty()) {
+    Edge2Data cur = edge_pins2_[0];
+    for (Index j = 1; j < edge_pins2_.size(); ++j) {
+      if (!edges2_equal(cur, edge_pins2_[j])) {
+        ret.edge_pins2_.push_back(cur);
+        cur = edge_pins2_[j];
+      }
+      else {
+        cur.weight += edge_pins2_[j].weight;
+      }
+    }
+    ret.edge_pins2_.push_back(cur);
   }
 
   std::swap(*this, ret);

@@ -6,6 +6,8 @@
 #include <unordered_map>
 #include <bitset>
 #include <iostream>
+#include <fstream>
+#include "io.h"
 
 namespace minipart {
 
@@ -243,6 +245,11 @@ BisectionState::BisectionProblem BisectionState::getBisectionProblem(Index i, In
   for (Index k = 0; k < part_to_nodes_[i].size(); ++k) ret.mapping[Node(m_index++)] = Part(0);
   for (Index k = 0; k < part_to_nodes_[j].size(); ++k) ret.mapping[Node(m_index++)] = Part(1);
 
+  std::unordered_map<Index, Index> globalToInternal;
+  for (Index i = 0; i < ret.nodes.size(); ++i) {
+    globalToInternal[ret.nodes[i].id] = i;
+  } 
+
   // Setup the demands
   ret.problem.demands = Matrix<Resource>(ret.nodes.size(), pb_.nResources());
   for (Index k = 0; k < ret.nodes.size(); ++k) {
@@ -268,17 +275,20 @@ BisectionState::BisectionProblem BisectionState::getBisectionProblem(Index i, In
   // TODO: Decrease margins for problems with multiple partitions
 
   // Setup the hypergraph
+  HypergraphBuilder b(ret.nodes.size());
+
+  // Gather the hyperedges
   std::unordered_map<Index, std::vector<Node> > edge_to_nodes;
-  Index ind = 0;
   for (Index k = 0; k < ret.nodes.size(); ++k) {
     Node n = ret.nodes[k];
-    Node o(ind++);
+    Node o(k);
+    assert (globalToInternal.at(n.id) == o.id);
     for (Edge e : pb_.hypergraph.edges(n)) {
       edge_to_nodes[e.id].push_back(o);
     }
   }
 
-  HypergraphBuilder b(ret.nodes.size());
+  // Translate the hyperedges
   for (auto const &p : edge_to_nodes) {
     Edge e(p.first);
     if (p.second.size() == 1) continue;
@@ -288,6 +298,21 @@ BisectionState::BisectionProblem BisectionState::getBisectionProblem(Index i, In
 
     b.addEdge(p.second.begin(), p.second.end(), pb_.hypergraph.weight(e));
   }
+
+  // Translate the 2-edges
+  for (Index k = 0; k < ret.nodes.size(); ++k) {
+    Node n = ret.nodes[k];
+    Node o(k);
+    for (auto e : pb_.hypergraph.edges2(n)) {
+      Node t = e.target;
+      if (t.id >= n.id) continue;
+      auto it = globalToInternal.find(t.id);
+      if (it == globalToInternal.end()) continue;
+      b.addEdge2(o, Node(it->second), e.weight);
+    }
+  }
+
+  b.vectorize();
   ret.problem.hypergraph = b;
 
   return ret;
@@ -295,6 +320,11 @@ BisectionState::BisectionProblem BisectionState::getBisectionProblem(Index i, In
 
 void BisectionState::checkConsistency() const {
   assert (part_to_nodes_.size() == subparts_.size());
+  std::size_t sz = 0;
+  for (const auto &nodes : part_to_nodes_) {
+    sz += nodes.size();
+  }
+  assert (sz == pb_.nNodes());
 }
 
 Mapping BisectionState::mapping() const {
@@ -312,7 +342,6 @@ Mapping BisectionState::mapping() const {
 Mapping solve(const Problem &pb, const SolverOptions &options) {
   BisectionState state(pb, options);
   state.run();
-
   return state.mapping();
 }
 

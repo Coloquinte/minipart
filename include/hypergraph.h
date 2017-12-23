@@ -9,32 +9,47 @@ namespace minipart {
 class HypergraphBuilder;
 class Hypergraph;
 
-struct HEdgeData {
-  Index limit_;
-  Weight weight_;
-  HEdgeData (Index l, Index w) : limit_(l), weight_(w) {}
+struct Edge2Data {
+  Node source;
+  Node target;
+  Weight weight;
+  Edge2Data(Node s, Node t, Weight w) : source(s), target(t), weight(w) {}
+};
+
+struct Pin2Data {
+  Node target;
+  Weight weight;
 };
 
 class Hypergraph {
   static_assert(std::is_unsigned<Index>(), "Index type must be unsigned");
   static_assert(std::is_signed<Weight>(), "Weight type must be signed");
 
+  /*
+   * Edges with only 2 pins are treated entirely differently
+   */
+
+  struct EdgeData {
+    Index limit_;
+    Weight weight_;
+    EdgeData (Index l, Weight w) : limit_(l), weight_(w) {}
+  };
+
  public:
-  typedef Node N;
-  typedef Edge E;
   typedef HypergraphBuilder Builder;
 
-  std::size_t nEdges() const;
   std::size_t nNodes() const;
-  std::size_t nPins() const;
+  std::size_t nEdges() const;
 
-  Range<E> edges() const;
-  Range<N> nodes() const;
+  Range<Node>  nodes() const;
+  Range<Edge>  edges() const;
+  const std::vector<Edge2Data> &edges2() const;
 
-  Slice<N> nodes   (Edge) const;
-  Slice<E> edges   (Node) const;
-
+  Slice<Node>  nodes  (Edge) const;
+  Slice<Edge>  edges  (Node) const;
   Weight weight(Edge) const;
+
+  Slice<Pin2Data> edges2 (Node) const;
 
   Hypergraph();
   Hypergraph(const Builder &);
@@ -49,34 +64,38 @@ class Hypergraph {
   void finalize();
 
  private:
-  std::vector<HEdgeData > edges_;
-  std::vector<N>    edge_pins_;
+  std::vector<EdgeData > edges_;
+  std::vector<Node>    edge_pins_;
 
   std::vector<Index> node_limits_;
-  std::vector<E> node_pins_;
+  std::vector<Edge> node_pins_;
+
+  std::vector<Index> node_limits2_;
+  std::vector<Pin2Data> node_pins2_;
+  std::vector<Edge2Data> edge_pins2_;
 
   Index _nNodes;
+
+  friend class HypergraphBuilder;
 };
 
 class HypergraphBuilder {
  public:
-  typedef Node N;
-  typedef Edge E;
   typedef Hypergraph H;
 
   std::size_t nEdges() const;
   std::size_t nNodes() const;
-  std::size_t nPins() const;
 
-  Range<E> edges() const;
-  Slice<N> nodes   (Edge) const;
+  Range<Edge> edges() const;
+  Slice<Node> nodes   (Edge) const;
   Weight weight(Edge) const;
 
   HypergraphBuilder(Index nNodes=0);
-  N addNode();
+  Node addNode();
   template <class It>
-  E addEdge(It begin, It end, Weight w=1);
-  E addEdge(std::initializer_list<N>, Weight w=1);
+  Edge addEdge(It begin, It end, Weight w=1);
+  Edge addEdge(std::initializer_list<Node>, Weight w=1);
+  Edge2 addEdge2(Node a, Node b, Weight w=1);
 
   // Sort and remove duplicate pins
   void finalize();
@@ -84,8 +103,9 @@ class HypergraphBuilder {
   void vectorize();
 
  private:
-  std::vector<HEdgeData > edges_;
-  std::vector<N>    edge_pins_;
+  std::vector<H::EdgeData> edges_;
+  std::vector<Node>    edge_pins_;
+  std::vector<Edge2Data> edge_pins2_;
 
   Index _nNodes;
 
@@ -107,6 +127,7 @@ inline Hypergraph::Hypergraph() {
 inline Hypergraph::Hypergraph(const Builder &b) {
   edges_ = b.edges_;
   edge_pins_ = b.edge_pins_;
+  edge_pins2_ = b.edge_pins2_;
   _nNodes = b._nNodes;
   finalize();
 }
@@ -117,15 +138,12 @@ inline std::size_t Hypergraph::nEdges() const {
 inline std::size_t Hypergraph::nNodes() const {
   return _nNodes;
 }
-inline std::size_t Hypergraph::nPins() const {
-  return edge_pins_.size();
-}
 
 inline Range<Edge > Hypergraph::edges() const {
-  return Range<E>(E(0), E(nEdges()));
+  return Range<Edge>(Edge(0), Edge(nEdges()));
 }
 inline Range<Node > Hypergraph::nodes() const {
-  return Range<N>(N(0), N(nNodes()));
+  return Range<Node>(Node(0), Node(nNodes()));
 }
 
 inline Slice<Node > Hypergraph::nodes   (Edge e) const {
@@ -152,12 +170,8 @@ inline std::size_t HypergraphBuilder::nNodes() const {
   return _nNodes;
 }
 
-inline std::size_t HypergraphBuilder::nPins() const {
-  return edge_pins_.size();
-}
-
 inline Range<Edge > HypergraphBuilder::edges() const {
-  return Range<E>(E(0), E(nEdges()));
+  return Range<Edge>(Edge(0), Edge(nEdges()));
 }
 
 inline Slice<Node > HypergraphBuilder::nodes(Edge e) const {
@@ -169,19 +183,35 @@ inline Weight HypergraphBuilder::weight(Edge e) const {
 }
 
 inline Node HypergraphBuilder::addNode() {
-  return N(_nNodes++);
+  return Node(_nNodes++);
 }
 
-inline Edge HypergraphBuilder::addEdge(std::initializer_list<N> l, Weight w) {
+inline Edge HypergraphBuilder::addEdge(std::initializer_list<Node> l, Weight w) {
   return addEdge(l.begin(), l.end(), w);
 }
 
 template<class It>
-Edge HypergraphBuilder::addEdge(It begin, It end, Weight w) {
-  E ret(nEdges());
+inline Edge HypergraphBuilder::addEdge(It begin, It end, Weight w) {
+  Edge ret(nEdges());
   edge_pins_.insert(edge_pins_.end(), begin, end);
   edges_.emplace_back(edge_pins_.size(), w);
   return ret;
+}
+
+inline Edge2 HypergraphBuilder::addEdge2(Node s, Node t, Weight w) {
+  Edge2 ret(edge_pins2_.size());
+  Index mn = std::min(s.id, t.id);
+  Index mx = std::max(s.id, t.id);
+  edge_pins2_.emplace_back(Node(mn), Node(mx), w);
+  return ret;
+}
+
+inline Slice<Pin2Data> Hypergraph::edges2(Node n) const {
+  return Slice<Pin2Data>(node_pins2_.begin() + node_limits2_[n.id], node_pins2_.begin() + node_limits2_[n.id+1]);
+}
+
+inline const std::vector<Edge2Data> &Hypergraph::edges2() const {
+  return edge_pins2_;
 }
 
 }  // End namespace minipart

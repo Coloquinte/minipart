@@ -14,15 +14,15 @@ BOOST_AUTO_TEST_CASE(degree2) {
   typedef Hypergraph H;
   H::Builder b;
   
-  std::vector<H::N> nodes;
+  std::vector<Node> nodes;
   for (unsigned i = 0; i < 5; ++i) {
     nodes.push_back(b.addNode());
   }
 
-  std::vector<H::E> edges;
+  std::vector<Edge> edges;
   for (unsigned i = 0; i < 5; ++i) {
     for (unsigned j = i+1; j < 5; ++j) {
-      H::E e = b.addEdge({nodes[i], nodes[j]}, edges.size());
+      Edge e = b.addEdge({nodes[i], nodes[j]}, edges.size());
       edges.push_back(e);
     }
   }
@@ -47,16 +47,16 @@ BOOST_AUTO_TEST_CASE(degree3) {
   typedef Hypergraph H;
   H::Builder b;
   
-  std::vector<H::N> nodes;
+  std::vector<Node> nodes;
   for (unsigned i = 0; i < 5; ++i) {
     nodes.push_back(b.addNode());
   }
 
-  std::vector<H::E> edges;
+  std::vector<Edge> edges;
   for (unsigned i = 0; i < 5; ++i) {
     for (unsigned j = i+1; j < 5; ++j) {
       for (unsigned k = j+1; k < 5; ++k) {
-        H::E e = b.addEdge({nodes[i], nodes[j], nodes[k]}, edges.size());
+        Edge e = b.addEdge({nodes[i], nodes[j], nodes[k]}, edges.size());
         edges.push_back(e);
       }
     }

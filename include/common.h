@@ -48,17 +48,26 @@ struct Edge {
   bool operator<(Edge o) const { return id < o.id; }
 };
 
+struct Edge2 {
+  Index id;
+
+  Edge2 () : id(-1) {}
+  explicit Edge2 (Index i) : id(i) {}
+  bool operator==(Edge2 o) const { return id == o.id; }
+  bool operator!=(Edge2 o) const { return id != o.id; }
+  bool operator<(Edge2 o) const { return id < o.id; }
+};
+
 // Node/Edge iterators
 template<class T>
 struct ObjIt : T, boost::iterator_facade<ObjIt<T>, T, boost::forward_traversal_tag> {
+  typedef T reference;
   ObjIt(T i) : T(i) {}
-  ObjIt<T>& operator++() { ++this->id; return *this; }
-  T& operator*() { return *this; }
+  void increment() { ++this->id; }
+  T operator*() const { return *this; }
 };
 
-template<class T> using Range = boost::iterator_range<ObjIt<T> >;
-
-// All Pin iterators (Node/Reader/Driver, Edge/Input/Output)
+template <class T> using Range = boost::iterator_range<ObjIt<T> >;
 template <class T> using SliceIt = typename std::vector<T>::const_iterator;  
 template <class T> using Slice = boost::iterator_range<SliceIt<T> >;  
 

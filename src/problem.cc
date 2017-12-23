@@ -24,8 +24,9 @@ std::vector<Resource> Problem::getTotalCapacities() const {
 }
 
 void Problem::check_consistency() const {
-  if (demands.size1() != hypergraph.nNodes()) abort();
-  if (demands.size2() != capacities.size2()) abort();
+  if (demands.size1() != hypergraph.nNodes())  throw std::runtime_error("Inconsistent number of nodes");
+  if (demands.size2() != capacities.size2()) throw std::runtime_error("Inconsistent number of resources");
+  hypergraph.checkConsistency();
 }
 
 bool Problem::is_legal(const Mapping &m) const {

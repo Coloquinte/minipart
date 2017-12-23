@@ -129,9 +129,18 @@ void writeHMetis(const Problem &pb, std::ostream &s) {
     s << std::endl;
   }
 
+  for (auto e : h.edges2()) {
+    s << e.weight << " " << e.source.id << " " << e.target.id << std::endl;
+  }
+
   for (std::size_t i = 0; i < r.size1(); ++i) {
     for (std::size_t j = 0; j < r.size2(); ++j) {
-      s << r(i, j) << " ";
+      if (j == 0) {
+        s << r(i, j);
+      }
+      else {
+        s << " " << r(i, j);
+      }
     }
     s << std::endl;
   }
@@ -203,6 +212,13 @@ void reportHypergraphStats(const Hypergraph &h, std::ostream &s) {
   }
   if (degreeToCount.empty()) return;
 
+  for (auto e : h.edges2()) {
+    ++degreeToCount[2];
+    degreeToWeight[2] += e.weight;
+    sumDegrees += 2;
+    if (e.weight != 1) reportWeight = true;
+  }
+
   s << std::endl;
   s << h.nNodes() << " nodes, " << h.nEdges() << " edges" << std::endl;
   s << std::fixed << std::setw(3) << std::setprecision(1);
@@ -219,6 +235,11 @@ void reportHypergraphStats(const Hypergraph &h, std::ostream &s) {
   degreeToCount.clear();
   for (auto n : h.nodes()) {
     std::size_t degree = h.edges(n).size();
+    // TODO: clean random-access iterator
+    for (auto e : h.edges2(n)) {
+      (void) e;
+      ++degree;
+    }
     ++degreeToCount[degree];
   }
   degreeToWeight = degreeToCount;
@@ -320,6 +341,14 @@ inline Weight edgeDegree(const Hypergraph &h, const Mapping &m, Edge e) {
 
 } // End anonymous namespace
 
+std::int64_t computeCostEdge2(const Hypergraph &h, const Mapping &m) {
+  std::int64_t ret = 0;
+  for (auto e : h.edges2()) {
+    if (m[e.source] != m[e.target]) ret += e.weight;
+  }
+  return ret;
+}
+
 std::int64_t computeCostBipart(const Hypergraph &h, const Mapping &m) {
   std::int64_t ret = 0;
   for (auto e : h.edges()) {
@@ -327,7 +356,7 @@ std::int64_t computeCostBipart(const Hypergraph &h, const Mapping &m) {
       ret += h.weight(e);
     }
   }
-  return ret;
+  return ret + computeCostEdge2(h, m);
 }
 
 std::int64_t computeCostCut(const Hypergraph &h, const Mapping &m) {
@@ -337,7 +366,7 @@ std::int64_t computeCostCut(const Hypergraph &h, const Mapping &m) {
       ret += h.weight(e);
     }
   }
-  return ret;
+  return ret + computeCostEdge2(h, m);
 }
 
 std::int64_t computeCostDegree(const Hypergraph &h, const Mapping &m) {
@@ -345,7 +374,7 @@ std::int64_t computeCostDegree(const Hypergraph &h, const Mapping &m) {
   for (auto e : h.edges()) {
     ret += edgeDegree(h, m, e) * h.weight(e);
   }
-  return ret;
+  return ret + computeCostEdge2(h, m);
 }
 
 std::vector<int> countCutsBipart(const Hypergraph &h, const std::vector<Mapping> &mappings) {
