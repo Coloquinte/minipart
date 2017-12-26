@@ -93,7 +93,6 @@ void BisectionState::doBisection() {
   // Just setup the bisection (illegal solution)
   for (Index i = 0; i < nCurrentParts(); ++i) {
     Index parts_ind = next_subparts.size();
-    assert (next_subparts.size() == bisection_tree_.beck().size());
     if (subparts_[i].size() > 1) {
       auto middle = subparts_[i].begin() + (subparts_[i].size() + 1) / 2;
       next_subparts.emplace_back(subparts_[i].begin(), middle);
@@ -116,9 +115,8 @@ void BisectionState::doBisection() {
 }
 
 void BisectionState::legalizeBisection() {
-  // TODO: make it robust (recursive?); have a clear mapping of which parts come from which bisection level
-  // Run a bin-packing pass on all pairs to get a legal placement
-  // Then if illegal pairs still exist make legalize 4, 8, 16... parts at a time
+  // Run a bin-packing pass on all bisections to get a legal placement
+  // If we can't make it at this stage, attempt to question previous bisection levels
 
   std::vector<char> illegalSubpart(nCurrentParts(), true);
   for (unsigned i = bisection_tree_.size(); i > 0; --i) {
@@ -163,16 +161,38 @@ void BisectionState::legalizeBisection() {
 }
 
 void BisectionState::optimizeBisection() {
-  for (Index i = 0; i+1 < nCurrentParts(); i += 2) {
-    redoBisection(i, i+1);
+  for (const std::vector<Index> bisection : bisection_tree_.back()) {
+    assert (bisection.size() <= 2 && !bisection.empty());
+    if (bisection.size() == 1) continue;
+    redoBisection(bisection[0], bisection[1]);
   }
 }
 
 void BisectionState::refineBisection() {
-  // TODO
+  // Up one level
+  if (bisection_tree_.size() <= 1) return;
+
+  std::size_t ind = bisection_tree_.size() - 2;
+  std::vector<std::vector<Index> > last_level = bisection_tree_.back();
+  std::vector<std::vector<Index> > upper_level = bisection_tree_[ind];
+
+  for (const std::vector<Index> bisection : upper_level) {
+    // We get 2 x 1 or 2 partitions
+    assert (bisection.size() <= 2 && !bisection.empty());
+    if (bisection.size() == 1) continue;
+    Index u1 = bisection[0];
+    Index u2 = bisection[1];
+    for (Index p1 : last_level[u1]) {
+      for (Index p2 : last_level[u2]) {
+        redoBisection(p1, p2);
+      }
+    }
+  }
 }
 
 void BisectionState::redoBisection(Index i, Index j) {
+  assert (i != j);
+
   // Extract the problem itself
   BisectionProblem bisection = getBisectionProblem(i, j);
 
