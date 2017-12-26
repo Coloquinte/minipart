@@ -203,22 +203,7 @@ void BisectionState::redoBisection(Index i, Index j) {
 
 bool BisectionState::legalizePartitions(const std::vector<Index> &subparts) {
   checkConsistency();
-  // Get the nodes
-  typedef std::pair<Node, Resource> P;
-
-  std::vector<P> wNodes;
-  for (Index sp : subparts) {
-    for (Node n : part_to_nodes_[sp]) wNodes.emplace_back(n, pb_.demands(n.id, 0));
-  }
-
-  // TODO: handle multiple resources
-  std::sort (wNodes.begin(), wNodes.end(),
-      [](P a, P b) { return a.second > b.second; });
-
-  std::vector<Node> nodes;
-  for (P p : wNodes) nodes.push_back(p.first);
-
-  std::vector<std::vector<Node> > result(subparts.size());
+  typedef std::pair<Node, float> P;
 
   // Get the resources
   Matrix<Resource> capacities = boost::numeric::ublas::zero_matrix<Resource>(subparts.size(), pb_.nResources());
@@ -230,27 +215,63 @@ bool BisectionState::legalizePartitions(const std::vector<Index> &subparts) {
     }
   }
 
-  Matrix<Resource> left = capacities;
+  // Normalize each resource
+  std::vector<float> factors;
+  for (std::size_t j = 0; j < capacities.size2(); ++j) {
+    Resource res = 0;
+    for (std::size_t i = 0; i < capacities.size1(); ++i) {
+      res += capacities(i, j);
+    }
+    factors.push_back(1.0f / (std::max((float) res, 1.0f)));
+  }
 
-  // Run a greedy bin packing, biggest nodes first
+  // Get the nodes; sort them by size
+  std::vector<P> wNodes;
+  for (Index sp : subparts) {
+    for (Node n : part_to_nodes_[sp]) {
+      float dem_avg = 0.0f;
+      for (std::size_t i = 0; i < pb_.nResources(); ++i) {
+        dem_avg += pb_.demands(n.id, i) * factors[i];
+      }
+      wNodes.emplace_back(n, dem_avg);
+    }
+  }
+  std::sort (wNodes.begin(), wNodes.end(),
+      [](P a, P b) { return a.second > b.second; });
+  std::vector<Node> nodes;
+  for (P p : wNodes) nodes.push_back(p.first);
+
+  // Run a greedy bin packing
+  std::vector<std::vector<Node> > result(subparts.size());
+  Matrix<Resource> left = capacities;
   for (Node n : nodes) {
-    bool placed = false;
-    // TODO: pick the most "balanced" partition
-    for (unsigned i = 0; !placed && i < capacities.size1(); ++i) {
+    std::vector<float> partUsage(capacities.size1(), 0.0);
+    for (unsigned j = 0; j < pb_.nResources(); ++j) {
+      Resource usage = 0;
+      for (unsigned i = 0; i < capacities.size1(); ++i) {
+        usage += (capacities(i, j) - left(i, j));
+      }
+      partUsage[j] += factors[j] * usage;
+    }
+
+    // Pick the most "balanced" partition
+    Index bestPart = -1;
+    float bestUsage = 0.0;
+    for (unsigned i = 0; i < capacities.size1(); ++i) {
       bool canPlace = true;
       for (unsigned j = 0; j < pb_.nResources(); ++j) {
         if (pb_.demands(n.id, j) > left(i, j)) canPlace = false;
       }
-      if (canPlace) {
-        for (unsigned j = 0; j < pb_.nResources(); ++j) {
-           left(i, j) -= pb_.demands(n.id, j);
-           result[i].push_back(n);
-        }
-        placed = true;
+      if (!canPlace) continue;
+      if (bestPart == (Index) -1 || partUsage[i] < bestUsage) {
+        bestUsage = partUsage[i];
+        bestPart = i;
       }
     }
-    if (!placed) {
-      return false;
+    if (bestPart == (Index) -1) return false;
+    for (unsigned j = 0; j < pb_.nResources(); ++j) {
+       left(bestPart, j) -= pb_.demands(n.id, j);
+       result[bestPart].push_back(n);
     }
   }
 
