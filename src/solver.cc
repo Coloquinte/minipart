@@ -46,6 +46,9 @@ class BisectionState {
   SolverOptions options_;
   std::vector<std::vector<Part> > subparts_;
   std::vector<std::vector<Node> > part_to_nodes_;
+  // Bisection tree
+  typedef std::vector<std::vector<Index> > LevelToLastLevelParts;
+  std::vector<LevelToLastLevelParts> bisection_tree_;
 };
 
 BisectionState::BisectionState(const Problem &pb, const SolverOptions &options)
@@ -85,20 +88,27 @@ void BisectionState::bisect() {
 void BisectionState::doBisection() {
   std::vector<std::vector<Part> > next_subparts;
   std::vector<std::vector<Node> > next_part_to_nodes;
+  bisection_tree_.emplace_back();
 
   // Just setup the bisection (illegal solution)
   for (Index i = 0; i < nCurrentParts(); ++i) {
-    if (subparts_[i].size() == 1) continue;
-    auto middle = subparts_[i].begin() + (subparts_[i].size() + 1) / 2;
-    next_subparts.emplace_back(subparts_[i].begin(), middle);
-    next_subparts.emplace_back(middle, subparts_[i].end());
-    next_part_to_nodes.emplace_back(part_to_nodes_[i]);
-    next_part_to_nodes.emplace_back();
-  }
-  for (Index i = 0; i < nCurrentParts(); ++i) {
-    if (subparts_[i].size() != 1) continue;
-    next_subparts.emplace_back(subparts_[i]);
-    next_part_to_nodes.emplace_back(part_to_nodes_[i]);
+    Index parts_ind = next_subparts.size();
+    assert (next_subparts.size() == bisection_tree_.beck().size());
+    if (subparts_[i].size() > 1) {
+      auto middle = subparts_[i].begin() + (subparts_[i].size() + 1) / 2;
+      next_subparts.emplace_back(subparts_[i].begin(), middle);
+      next_subparts.emplace_back(middle, subparts_[i].end());
+      next_part_to_nodes.emplace_back(part_to_nodes_[i]);
+      next_part_to_nodes.emplace_back();
+
+      bisection_tree_.back().push_back(std::vector<Index>({parts_ind, parts_ind + 1}));
+    }
+    else {
+      next_subparts.emplace_back(subparts_[i]);
+      next_part_to_nodes.emplace_back(part_to_nodes_[i]);
+
+      bisection_tree_.back().push_back(std::vector<Index>({parts_ind}));
+    }
   }
 
   subparts_ = next_subparts;
@@ -106,24 +116,45 @@ void BisectionState::doBisection() {
 }
 
 void BisectionState::legalizeBisection() {
+  // TODO: make it robust (recursive?); have a clear mapping of which parts come from which bisection level
   // Run a bin-packing pass on all pairs to get a legal placement
   // Then if illegal pairs still exist make legalize 4, 8, 16... parts at a time
+
   std::vector<char> illegalSubpart(nCurrentParts(), true);
-  for (unsigned step = 2; step < 2*nCurrentParts(); step *= 2) {
-    for (Index i = 0; i < nCurrentParts(); i += step) {
-      std::vector<Index> subpartsToLegalize;
-      bool needsLegalization = false;
-      for (unsigned j = i; j < i + step && j < nCurrentParts(); ++j) {
-        needsLegalization |= illegalSubpart[j];
-        subpartsToLegalize.push_back(j);
+  for (unsigned i = bisection_tree_.size(); i > 0; --i) {
+    bool iterationSuccess = true;
+    const std::vector<std::vector<Index> > &level = bisection_tree_[i-1];
+    for (unsigned j = 0; j < level.size(); ++j) {
+      // Gather all the parts in it
+      std::vector<Index> parts = level[j];
+      for (unsigned k = i; k < bisection_tree_.size(); ++k) {
+        std::vector<Index> next_parts;
+        for (Index p : parts) {
+          next_parts.insert(next_parts.end(), bisection_tree_[k][p].begin(), bisection_tree_[k][p].end());
+        }
+        std::swap(next_parts, parts);
       }
-      if (!needsLegalization) continue;
-      bool success = legalizePartitions(subpartsToLegalize);
-      for (unsigned j = i; j < i + step && j < nCurrentParts(); ++j) {
-        illegalSubpart[j] = !success;
+
+      // Check whether the solution is already legal
+      bool illegal = false;
+      for (Index p : parts) {
+        illegal |= illegalSubpart[p];
       }
+      if (!illegal) continue;
+
+      // Legalize them
+      bool success = legalizePartitions(parts);
+      for (Index p : parts) {
+        illegalSubpart[p] = !success;
+      }
+      iterationSuccess &= success;
+    }
+
+    if (iterationSuccess) {
+      break;
     }
   }
+
   for (bool illegal : illegalSubpart) {
     if (!illegal) continue;
     std::cerr << "No legal solution found" << std::endl;
