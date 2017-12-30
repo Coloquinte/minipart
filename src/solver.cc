@@ -120,7 +120,7 @@ void BisectionState::legalizeBisection() {
 
   std::vector<char> illegalSubpart(nCurrentParts(), true);
   for (unsigned i = bisection_tree_.size(); i > 0; --i) {
-    bool iterationSuccess = true;
+    bool failed_parts = 0;
     const std::vector<std::vector<Index> > &level = bisection_tree_[i-1];
     for (unsigned j = 0; j < level.size(); ++j) {
       // Gather all the parts in it
@@ -145,11 +145,16 @@ void BisectionState::legalizeBisection() {
       for (Index p : parts) {
         illegalSubpart[p] = !success;
       }
-      iterationSuccess &= success;
+      if (!success) {
+        failed_parts += parts.size();
+      }
     }
 
-    if (iterationSuccess) {
+    if (failed_parts == 0) {
       break;
+    }
+    else if (options_.verbosity >= 2) {
+      std::cout << "Unable to reuse the partitioning at level " << i << ": " << failed_parts << " illegal parts. Trying the next level" << std::endl;
     }
   }
 
@@ -331,20 +336,52 @@ BisectionState::BisectionProblem BisectionState::getBisectionProblem(Index i, In
     }
   }
 
-  // Setup the capacities
-  ret.problem.capacities = boost::numeric::ublas::zero_matrix<Resource>(2, pb_.nResources());
+  // Compute the full capacities
+  Matrix<Resource> capacities = boost::numeric::ublas::zero_matrix<Resource>(2, pb_.nResources());
   for (Part p : subparts_[i]) {
-    for (Index j = 0; j < pb_.nResources(); ++j) {
-      ret.problem.capacities(0, j) += pb_.capacities(p.id, j);
+    for (Index k = 0; k < pb_.nResources(); ++k) {
+      capacities(0, k) += pb_.capacities(p.id, k);
     }
   }
   for (Part p : subparts_[j]) {
-    for (Index j = 0; j < pb_.nResources(); ++j) {
-      ret.problem.capacities(1, j) += pb_.capacities(p.id, j);
+    for (Index k = 0; k < pb_.nResources(); ++k) {
+      capacities(1, k) += pb_.capacities(p.id, k);
     }
   }
 
-  // TODO: Decrease margins for problems with multiple partitions
+  // Compute the usage for the starting solution
+  Matrix<Resource> startingUsage = boost::numeric::ublas::zero_matrix<Resource>(2, pb_.nResources());
+  for (Index k = 0; k < ret.nodes.size(); ++k) {
+    Node n = ret.nodes[k];
+    for (Index l = 0; l < pb_.nResources(); ++l) {
+      startingUsage(ret.mapping[Node(k)].id, l) += pb_.demands(n.id, l);
+    }
+  }
+  for (Index k = 0; k < 2; ++k) {
+    for (Index l = 0; l < pb_.nResources(); ++l) {
+      assert (startingUsage(k, l) <= capacities(k, l));
+    }
+  }
+
+  // Adjust the capacities: leave some margin for later bisections to succeed
+  Matrix<Resource> margins = capacities - startingUsage;
+  ret.problem.capacities = Matrix<Resource>(2, pb_.nResources());
+  std::size_t num_subparts[2] = { subparts_[i].size(), subparts_[j].size() };
+  for (int k = 0; k < 2; ++k) {
+    if (num_subparts[k] == 1) {
+      // No bisection left: no tweaking required
+      for (Index l = 0; l < pb_.nResources(); ++l) {
+        ret.problem.capacities(k, l) = capacities(k, l);
+      }
+    }
+    else {
+      // Scale the margin
+      double scaling = 1.0 / num_subparts[k]; // TODO: think and ponder about it, or benchmark stuff
+      for (Index l = 0; l < pb_.nResources(); ++l) {
+        ret.problem.capacities(k, l) = startingUsage(k, l) + scaling * margins(k, l);
+      }
+    }
+  }
 
   // Setup the hypergraph
   HypergraphBuilder b(ret.nodes.size());

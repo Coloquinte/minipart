@@ -44,7 +44,7 @@ void BipartSolver::run_optim() {
 }
 
 void BipartSolver::report() {
-  if (options_.verbosity <= 1) return;
+  if (options_.verbosity <= 2) return;
 
   for (std::size_t i = 0; i < level_; ++i) std::cout << "  ";
   std::cout << pb_.hypergraph.nNodes() << " nodes, ";
